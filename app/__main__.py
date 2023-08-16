@@ -28,26 +28,26 @@ def main():
     # Get a class with a threaded read() function to read from the source
     capture_manager = ThreadedFileCaptureManager(queue = start_queue)
     capture_manager.open("clips/fr-trans2.mp4")
+
+    frame_rate = capture_manager.get_frame_properties()["rate"]
     
     # Get a class with a threaded show() function to write the output
     video_show = ThreadedVideoShow (queue = finish_queue, props=properties[constants.VIDEO_SHOW_PROPS])
-
+    video_show.setFrameRate(frame_rate)
 
     # Get a class for processing the frames
     classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
-
-    #video_show.setFPS(capture_manager.fps)
 
     # Get a class which reads from the input queue, process the frame and writes to the output queue
     #middle_man = ThreadedMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, threads = 5)
     
     # Build the input and output properties for the class
     mm_input_props = {"inputDone": capture_manager.isDone, "terminateInput": capture_manager.stop, "warmupProps": (0.002, 20)}
-    mm_output_props = {"outputDone": video_show.isDone, "fps": capture_manager.get_frame_properties()["rate"]}
+    mm_output_props = {"outputDone": video_show.isDone}
     mm_process_props = {"processFunc": classifier.process, "threads": 5}
     
     middle_man = ThreadedMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
-                           outputProps = mm_output_props, processProps = mm_process_props)
+                                    outputProps = mm_output_props, processProps = mm_process_props)
 
     start = time.time()
     
@@ -61,6 +61,8 @@ def main():
 
     # Call middle_man.run who will read from input queue, process, and write to output queue
     middle_man.run()
+
+    print (video_show.stats())
 
     # Explicitly call the constructors so that thread.join() will be called
     del(video_show)
