@@ -97,5 +97,7 @@ def mergeWithDefault (source: dict, default: dict) -> dict:
     for key in source.keys():
         if key in new:
             new[key] = source[key]
+        else:
+            print(f'Property {key} not found in defaults. Ignoring')
 
     return new

@@ -11,7 +11,7 @@ class Classifier:
     def __init__(self, classifierFile: str, props: dict = {}):
     
         # Build the default properties for this classs
-        default_props = {"classifierFile": classifierFile, "minObjectSize": [18,18], "maxObjectSize": [128,128],
+        default_props = {"minObjectSize": [18,18], "maxObjectSize": [128,128],
                         "scaleFactor": 1.09,"minNeighbors": 3}
 
         # Merge with whatever is sent in
@@ -23,6 +23,7 @@ class Classifier:
         self.scale_factor = self.props["scaleFactor"]
         self.min_neighbors = self.props["minNeighbors"]
         
+        # Instanciate the cv2 classifier
         self.classifier = cv2.CascadeClassifier(filename=classifierFile)
 
     # -------------------------------------------------------------------------

@@ -33,8 +33,6 @@ class MiddleMan:
         # ----------------- Output properties ------------------------
         # Define the test to see if the output class has stopped 
         self.output_is_done_test = outputProps["outputDone"]
-        # Define frame rate
-        self.fps = outputProps["fps"]
 
         # --------------  Process properties ------------------------
         # Number of threads for calling process functions
@@ -62,8 +60,6 @@ class MiddleMan:
         
         if not "outputDone" in outputProps:
             raise Exception("Missing outputDone in OutputProps")
-        if not "fps" in outputProps:
-            raise Exception("Missing fps in inputProps")
         
         if not "processFunc" in processProps:
             raise Exception("Missing processFunc in processProps")

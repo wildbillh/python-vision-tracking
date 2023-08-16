@@ -19,23 +19,27 @@ class VideoShow:
 
     def __init__(self, props={}):
         
-
-        default_props = {"throttleOutput": True, "clipCaptureDir": "clips/capture", "showTime": False, "windowName": "Object Detection", "show": True}
+        default_props = {"clipCaptureDir": "clips/capture", "showTime": False, 
+                         "windowName": "Object Detection", "showOutput": True}
+        
         # Merge with whatever is sent in
         self.props = mergeWithDefault(props, default_props)
 
-        self.window_name = props["windowName"]
-        self.capture_dir = props["clipCaptureDir"]
-        self.show_time = props["showTime"]
-        self.throttle_output = props["throttleOutput"]
-        self.show_output = props["showOutput"]
-
-    
-        self.delay_ms = 0
-        self.process_delay = 5
-        self.last_load = time.time() 
+        self.window_name = self.props["windowName"]
+        self.capture_dir = self.props["clipCaptureDir"]
+        self.show_time = self.props["showTime"]
+        self.show_output = self.props["showOutput"]
         
+        self.fps = 0
+        self.delay_ms = 1000.0 / self.fps if self.fps > 0 else 0
+        self.process_delay = 3
 
+
+        # Stats
+        self.first_load_time = 0
+        self.last_load_time = 0
+        self.frame_count = 0
+        
     # -----------------------------------------------------------------
 
     def __del__(self):
@@ -51,14 +55,12 @@ class VideoShow:
 
     # --------------------------------------------------------------
 
-    def setFPS (self, fps: int) -> None:
+    def setFrameRate (self, fps: int) -> None:
         """
             Set the fps of the output by adding sleeps just prior to imshow
         """
-        if fps == 0:
-            self.throttle_output = False
-        else:
-            self.delay_ms = 1000.0 / fps
+        self.fps = fps
+        self.delay_ms = 1000.0 / fps if fps > 0 else 0
 
     # -------------------------------------------------------------
 
@@ -85,9 +87,12 @@ class VideoShow:
             special operations
         """
 
+        # Don't do anything if show_output is False
         if not self.show_output:
             return (True, None)
-            
+        
+       
+        # Write the time and frame on the window is show_time is set
         if self.show_time:
             text = f'{(frameProps["time"] / 1000):.3f} : {frameProps["frame"]}'
             text = text.rjust(15)
@@ -97,22 +102,37 @@ class VideoShow:
                                     color=self.properties[constants.TIME_COLOR],
                                     thickness=self.properties[constants.TIME_THICKNESS])
             
+        # If this is the first loop set the load times
+        if self.first_load_time == 0:
+            self.first_load_time = self.last_load_time = time.time()
+            
+       
         # If an fps is given we may need to sleep before the showing the frame.
-        if self.throttle_output and self.delay_ms > 0:
-            interval_ms = (time.time() - self.last_load) / 1000
+        if self.delay_ms > 0:
+            interval_ms = (time.time() - self.last_load_time) / 1000
             if interval_ms < (self.delay_ms - self.process_delay):
                 time.sleep((self.delay_ms - self.process_delay - interval_ms) / 1000)
         
+
         # Show the frame   
         cv2.imshow(self.window_name, frame)
+
+        self.frame_count += 1
         
         # Either add or subtract to get a new process delay, based on the found interval
+        
+        # Calculate the delay in ms since the last load
         now = time.time()
-        if (now - self.last_load) * 1000 > self.delay_ms:
+        delay = (now - self.last_load_time) * 1000
+        
+        # If the delay was greater, add to the process_delay
+        if delay > self.delay_ms:
             self.process_delay += 1
         else:
             self.process_delay -= 1
-        self.last_load = now    
+
+        # Set the new value for last_load_time    
+        self.last_load_time = now    
         
         # Check for a keypress
         keypress = cv2.pollKey()
@@ -142,15 +162,21 @@ class VideoShow:
         elif keypress == ord(VideoShow.REWIND) or keypress == VideoShow.FAST_FOWARD:
             return (True, chr(keypress))
 
+    def stats (self):
+        return (self.frame_count / (self.last_load_time - self.first_load_time) if self.last_load_time > 0 else 0.0, self.process_delay)
+
 
     # ------------------------------------------------------------------------------------
 
     def destroy (self):
-        cv2.destroyWindow(self.window_name) 
+        try:
+            cv2.destroyWindow(self.window_name)
+        except Exception:
+            pass
+        
 
 
 # =============================================================================================
-
 
 class ThreadedVideoShow (VideoShow):
     """
