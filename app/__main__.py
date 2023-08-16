@@ -32,8 +32,10 @@ def main():
     frame_rate = capture_manager.get_frame_properties()["rate"]
     
     # Get a class with a threaded show() function to write the output
-    video_show = ThreadedVideoShow (queue = finish_queue, props=properties[constants.VIDEO_SHOW_PROPS])
-    video_show.setFrameRate(frame_rate)
+    props = properties[constants.VIDEO_SHOW_PROPS]
+    #props["showOutput"] = False
+    video_show = ThreadedVideoShow (queue = finish_queue, props=props)
+    video_show.setFrameRate(0)
 
     # Get a class for processing the frames
     classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
@@ -61,8 +63,10 @@ def main():
 
     # Call middle_man.run who will read from input queue, process, and write to output queue
     middle_man.run()
-
-    print (video_show.stats())
+    
+    vs_stats = video_show.stats()
+    print (f'from cm: {capture_manager.stats()} frames')
+    print (f'from vs: {vs_stats[0]} frames, {vs_stats[1]} fps')
 
     # Explicitly call the constructors so that thread.join() will be called
     del(video_show)

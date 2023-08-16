@@ -40,9 +40,10 @@ class MiddleMan:
         # Process function 
         self.process_func = processProps["processFunc"]
         
+        
         self.should_run = True
         # Time to wait for new resources
-        self.loop_wait = 0.001
+        self.loop_wait = 0.0001
 
     # ----------------------------------------------------------------
 
@@ -126,15 +127,19 @@ class MiddleMan:
                     self.input_shut_down()
                 self.should_run = False  
     
-        print(frame_count, frame_count / (time.time() - start), flush=True)
+        run_time = time.time() - start
+        print(f'{frame_count} frames in {run_time}s, fps = {frame_count / run_time}', flush=True)
 
 # =============================================================================
 
 class ThreadedMiddleMan (MiddleMan):
 
-    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, outputProps: dict, processProps: dict):
+    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
+                 outputProps: dict, processProps: dict):
+        
         # Call the Base class constructor
-        super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, outputProps=outputProps, processProps=processProps)
+        super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, 
+                         outputProps=outputProps, processProps=processProps)
         
         self.daemon = None       
 
@@ -179,23 +184,25 @@ class ThreadedMiddleMan (MiddleMan):
 
             # Check to see if the input class is complete
             if not exit_when_queues_empty and self.input_is_done_test():
-                print ("Quit receieved from Capture Manager", flush=True)
+                print ("Input is depleted", flush=True)
                 # Set the bool so that we'll exit when queues are empty
                 exit_when_queues_empty = True              
 
             # Check the ouput to see if the user wants to quit
             if self.output_is_done_test():
-                print ('Cancel request received from Video Show', flush=True)
+                print ('Cancel request received from Ouput', flush=True)
                 self.should_run = False 
                 # Since the user wants to quit, tell the input to queue
                 if (self.input_shut_down != None):
                     self.input_shut_down()
             else:
                 time.sleep(self.loop_wait)
+            
 
         thread_pool.shutdown()
+        
 
-        print(write_frame_number, write_frame_number / (time.time() - start), flush=True)
+        print(f'from mm: {write_frame_number} frames, {write_frame_number / (time.time() - start)} fps', flush=True)
         
         """
         try:

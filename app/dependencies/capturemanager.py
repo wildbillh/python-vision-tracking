@@ -14,6 +14,8 @@ class CaptureManager():
         self.fps = 0
         self.width = 0
         self.height = 0
+
+        self.frame_count = 0
     # --------------------------------------------------------------
 
 
@@ -65,10 +67,16 @@ class CaptureManager():
         ret, frame = self.cap.read()
 
         if ret:
+            self.frame_count += 1
             return (True, frame, self.get_frame_properties())
+            
         else:
             return (False, None, None)
         
+    # ----------------------------------------------------------
+    def stats(self):
+        return self.frame_count
+    
     # ----------------------------------------------------------
 
     def destroy(self):

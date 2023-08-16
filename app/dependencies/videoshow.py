@@ -116,11 +116,9 @@ class VideoShow:
 
         # Show the frame   
         cv2.imshow(self.window_name, frame)
-
         self.frame_count += 1
         
-        # Either add or subtract to get a new process delay, based on the found interval
-        
+
         # Calculate the delay in ms since the last load
         now = time.time()
         delay = (now - self.last_load_time) * 1000
@@ -163,7 +161,7 @@ class VideoShow:
             return (True, chr(keypress))
 
     def stats (self):
-        return (self.frame_count / (self.last_load_time - self.first_load_time) if self.last_load_time > 0 else 0.0, self.process_delay)
+        return (self.frame_count, self.frame_count / (self.last_load_time - self.first_load_time) if self.last_load_time > 0 else (0,0))
 
 
     # ------------------------------------------------------------------------------------
@@ -226,15 +224,16 @@ class ThreadedVideoShow (VideoShow):
         while self.should_run:
             try:
                 frame, props = self.q.get()
-                
+                           
                 if self.show_output:
                     success, action = super().show(frame)
+
                     if not success:   
-                        #self.should_run = False
                         self.stop()
 
             except Exception:
                 time.sleep(self.empty_queue_seconds)
+        print("End of vs loop", flush=True)
         
 
     # ------------------------------------------------------------------------------------
@@ -243,6 +242,7 @@ class ThreadedVideoShow (VideoShow):
         """
             Stop the thread by setting the should_run bool to False
         """
+        print('vs.stop() called', flush=True)
         self.should_run = False
         if self.daemon != None:
             try:
@@ -258,20 +258,4 @@ class ThreadedVideoShow (VideoShow):
             Returns true if the thread is not running
         """ 
         return not self.should_run
-    
-    
-    # --------------------------------------------------------------------------------
-
-    def waitForQueuedObjects (self, fps):
-        """
-            Called when the source of frames is depleted and we want to finish off any
-            frames left in the queue
-        """
-        print("waiting for remaining queue objects to show")
-        # Continure processing until the queue is empty or maxIterations reached
-        maxIterations = self.q.maxsize
-        count = 0
-        sleepSeconds = 1.0 / fps
-        while self.should_run and count < maxIterations and not self.q.empty():
-            time.sleep(sleepSeconds)
-            count += 1        
+        

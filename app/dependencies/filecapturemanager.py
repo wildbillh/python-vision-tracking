@@ -27,6 +27,7 @@ class FileCaptureManager (CaptureManager):
         ret, frame = self.cap.read()
 
         if ret:
+            self.frame_count += 1
             return (True, frame, self.get_frame_properties())
         else:
             return (False, None, None)
