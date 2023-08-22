@@ -4,6 +4,8 @@ from threading import Thread
 from typing import Tuple
 from collections.abc import Callable
 from app.dependencies.fifothreadpool import FIFOThreadPool
+import cv2
+import numpy as np
 
 
 class MiddleMan:
@@ -33,6 +35,8 @@ class MiddleMan:
         # ----------------- Output properties ------------------------
         # Define the test to see if the output class has stopped 
         self.output_is_done_test = outputProps["outputDone"]
+        self.output_stop_when_q_empty_func = outputProps["outputStopWhenQEmpty"]
+        self.output_stop_called = False
 
         # --------------  Process properties ------------------------
         # Number of threads for calling process functions
@@ -41,9 +45,20 @@ class MiddleMan:
         self.process_func = processProps["processFunc"]
         
         
+        # The following values can be none or [int, int]
+        # Get the actual dimensions of the incoming frames
+        self.frame_dims = processProps["frameDims"]
+        # Dimensions of classifier image
+        self.process_dims = processProps["processDims"]
+        # Dimensions of final Image
+        self.finish_dims = processProps["finishDims"]
+        
+        
         self.should_run = True
         # Time to wait for new resources
         self.loop_wait = 0.0001
+
+        self.first_process_call = True
 
     # ----------------------------------------------------------------
 
@@ -64,6 +79,15 @@ class MiddleMan:
         
         if not "processFunc" in processProps:
             raise Exception("Missing processFunc in processProps")
+        
+        if not "frameDims" in processProps:
+            processProps["frameDims"] = None
+        
+        if not "processDims" in processProps:
+            processProps["processDims"] = None
+        
+        if not "finishDims" in processProps:
+            processProps["finishDims"] = None
         
     # ---------------------------------------------------------------------------------------
 
@@ -100,7 +124,7 @@ class MiddleMan:
         
         # Main loop
         while self.should_run: 
-
+            print(self.in_q.qsize(), self.out_q.qsize(), flush=True)
             # If the input queue has frames and the output queue is not full, process a frame
             if not self.in_q.empty() and not self.out_q.full():
            
@@ -112,12 +136,20 @@ class MiddleMan:
                 time.sleep(self.loop_wait)
 
              # if exit when empty is set, set exit bool when queues are empty
-            if exit_when_queues_empty and self.in_q.empty() and self.out_q.empty():
-                self.should_run = False    
+            if exit_when_queues_empty and self.in_q.empty():
+                
+                if self.out_q.empty():
+                    self.should_run = False 
+                # Tell output to quit when q is depleted
+                elif not self.output_stop_called:
+                    print("Telling output to stop", flush = True)
+                    self.output_stop_when_q_empty_func()
+                    self.output_stop_called = True
+                   
 
             # Check to see if the input class is complete
             if not exit_when_queues_empty and self.input_is_done_test():
-                print ("Quit receieved from Capture Manager")
+                print ("Quit receieved from Capture Manager", flush=True)
                 exit_when_queues_empty = True
                 continue
 
@@ -158,7 +190,8 @@ class ThreadedMiddleMan (MiddleMan):
         if self.input_warmup_sleep != 0:
             self.WarmUpInputQueue()
 
-        thread_pool = FIFOThreadPool(self.process_func, self.threads)
+        #thread_pool = FIFOThreadPool(self.process_func, self.threads)
+        thread_pool = FIFOThreadPool(self.process, self.threads)
         exit_when_queues_empty = False
     
         # Main loop
@@ -179,8 +212,14 @@ class ThreadedMiddleMan (MiddleMan):
                     read_frame_number += 1
            
             # if exit when empty is set, set exit bool when queues are empty
-            if exit_when_queues_empty and self.in_q.empty() and self.out_q.empty():
-                self.should_run = False
+            if exit_when_queues_empty and self.in_q.empty():
+                if self.out_q.empty():
+                    self.should_run = False
+                    continue
+                elif not self.output_stop_called:
+                    print("output stop on empty called")
+                    self.output_stop_called = True
+                    self.should_run = False
 
             # Check to see if the input class is complete
             if not exit_when_queues_empty and self.input_is_done_test():
@@ -209,3 +248,16 @@ class ThreadedMiddleMan (MiddleMan):
             self.daemon.join()
         except: Exception
         """
+
+    # -----------------------------------------------------------------
+
+    def process (self, frameTuple):
+        """
+            This method is overwritten by a child class, else it just returns the frame and props
+            that were sent to it. 
+        """
+        
+        if self.first_process_call:
+            print ("Warning: The process() method is usually overwritten by a child class", flush=True)
+            self.first_process_call = False
+        return (frameTuple)

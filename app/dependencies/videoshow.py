@@ -15,6 +15,7 @@ class VideoShow:
     WRITE_FILE = 'f'
     REWIND = 'l'
     FAST_FOWARD = 'l'
+    PAUSE = 'p'
 
 
     def __init__(self, props={}):
@@ -144,6 +145,11 @@ class VideoShow:
         # Quit indicated. Set the stop boolean
         if keypress == ord(VideoShow.QUIT):
             return (False, None)
+        
+        elif keypress == ord(VideoShow.PAUSE):
+            while True:
+                if cv2.waitKey(0) & 0xFF == ord(VideoShow.PAUSE):
+                    break
 
         # Write the current frame as a jpg
         elif keypress == ord(VideoShow.WRITE_FILE):
@@ -192,7 +198,8 @@ class ThreadedVideoShow (VideoShow):
         self.q = queue
     
         self.daemon = None
-        self.empty_queue_seconds = 0.002
+        self.empty_queue_seconds = 0.001
+        self.stop_on_empty_queue = False
 
 
 
@@ -222,6 +229,7 @@ class ThreadedVideoShow (VideoShow):
         total_sleep_time = 0.0
         
         while self.should_run:
+
             try:
                 frame, props = self.q.get()
                            
@@ -233,7 +241,12 @@ class ThreadedVideoShow (VideoShow):
 
             except Exception:
                 time.sleep(self.empty_queue_seconds)
+
+            if self.stop_on_empty_queue and self.q.empty():
+                self.should_run = False
+
         print("End of vs loop", flush=True)
+        self.stop()
         
 
     # ------------------------------------------------------------------------------------
@@ -258,4 +271,10 @@ class ThreadedVideoShow (VideoShow):
             Returns true if the thread is not running
         """ 
         return not self.should_run
+    
+    # -------------------------------------------------------------------------------
+
+    def shouldStopOnEmptyQueue (self):
+        print("Stop on empty called")
+        self.stop_on_empty_queue = True
         

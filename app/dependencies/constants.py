@@ -24,6 +24,7 @@ SKIP_FRAME_SIZE = 'skipFrameSize'
 # Props
 CLASSIFIER_PROPS = 'classifierProps'
 VIDEO_SHOW_PROPS = 'videoShowProps'
+PROCESSING_PROPS = 'processingProps'
 
 REQUIRED_PROPERTIES = {
     TIME_COLOR: tuple,

@@ -29,34 +29,58 @@ class Classifier:
     # -------------------------------------------------------------------------
 
 
-    def process(self, frameTuple: Tuple[np.ndarray, dict]) -> Tuple[np.ndarray, dict]:
+    def process(self, frame: np.ndarray) -> Tuple[np.ndarray, dict]:
         """
             Process the frame and return it
         """
-        frame = cv2.resize(src=frameTuple[0], dsize=[960, 540], interpolation=cv2.INTER_AREA)
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
-        objects, weights, levels = self.classifier.detectMultiScale3(gray_frame, 
+        #frame = cv2.resize(src=frameTuple[0], dsize=[960, 540], interpolation=cv2.INTER_AREA)
+        #gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)  
+        objects, weights, levels = self.classifier.detectMultiScale3(frame, 
             scaleFactor=self.scale_factor, minSize=self.min_size, 
             maxSize=self.max_size, minNeighbors=self.min_neighbors, outputRejectLevels=True)
-            
 
+
+        return (objects, levels)    
+        print(weights, flush=True)
+        cropped = None
         # if there are no detections, this will be false
         if isinstance(levels, np.ndarray):
             maxIndex = levels.argmax()
+
+
+
+            if levels.shape[0] == 1:
+                x, y, w, h = objects[maxIndex]
+                cropped = cv2.resize(frame[y:y+h, x:x+w ], dsize=[300, 160])
+            else:
+                pass
+
+            """
+            print("------------------------------")
             for i in range(levels.size):
                 #i = levels.argmax()
                 x, y, w, h = objects[i]
                 color = (255,0,0)
+                color = (0,255,0)
                 
                 if i == maxIndex:
                     color = (0,255,0)
                 elif levels[i] < 0.7:
                     color = (0,0,255)
+                    
+                print(objects[i], levels, maxIndex, flush=True)
+                try:
+                    if i == maxIndex:
+                        cropped = cv2.resize(frame[y:y+h, x:x+w ], dsize=[300, 160])
+                    else:
+                        cropped = np.concatenate((cropped, cv2.resize(frame[y:y+h, x:x+w ], dsize=[300, 160])), axis=0)
+                except Exception:
+                    continue
+                #frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
+            """
 
-                frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
 
-
-        return (frame, frameTuple[1])
+        return (cropped, frameTuple[1])
 
     # ------------------------------------------------------------------------
     

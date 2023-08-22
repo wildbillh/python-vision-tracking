@@ -2,6 +2,7 @@ import traceback
 from queue import Queue
 import time
 import sys
+import numpy as np
 
 from app.dependencies.cl_parsing import parse_args
 from app.dependencies import constants
@@ -9,6 +10,7 @@ from app.dependencies import utils
 from app.dependencies.videoshow import VideoShow, ThreadedVideoShow
 from app.dependencies.filecapturemanager import FileCaptureManager, ThreadedFileCaptureManager
 from app.dependencies.middleman import MiddleMan, ThreadedMiddleMan
+from app.dependencies.kbmiddleman import KBMiddleMan
 from app.dependencies.classifier import Classifier
 
 
@@ -27,26 +29,28 @@ def main():
 
     # Get a class with a threaded read() function to read from the source
     capture_manager = ThreadedFileCaptureManager(queue = start_queue)
-    capture_manager.open("clips/fr-trans2.mp4")
+    capture_manager.open(args["sourceFile"])
 
-    frame_rate = capture_manager.get_frame_properties()["rate"]
+    frame_props = capture_manager.get_frame_properties()
+    frame_rate = 0 #frame_props["rate"]
+    frame_dims = [frame_props["height"], frame_props["width"]]
     
     # Get a class with a threaded show() function to write the output
     props = properties[constants.VIDEO_SHOW_PROPS]
-    #props["showOutput"] = False
     video_show = ThreadedVideoShow (queue = finish_queue, props=props)
-    video_show.setFrameRate(0)
+    video_show.setFrameRate(frame_rate)
 
     # Get a class for processing the frames
     classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
 
-    # Get a class which reads from the input queue, process the frame and writes to the output queue
-    #middle_man = ThreadedMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, threads = 5)
     
     # Build the input and output properties for the class
     mm_input_props = {"inputDone": capture_manager.isDone, "terminateInput": capture_manager.stop, "warmupProps": (0.002, 20)}
-    mm_output_props = {"outputDone": video_show.isDone}
-    mm_process_props = {"processFunc": classifier.process, "threads": 5}
+    mm_output_props = {"outputDone": video_show.isDone, "outputStopWhenQEmpty": video_show.shouldStopOnEmptyQueue}
+    
+    # Get the process props from the properties file and add our process function
+    mm_process_props = properties[constants.PROCESSING_PROPS]
+    mm_process_props["processFunc"] = classifier.process
     
     middle_man = ThreadedMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
                                     outputProps = mm_output_props, processProps = mm_process_props)
@@ -57,9 +61,6 @@ def main():
     capture_manager.read()
     # Start the thread that shows the images
     video_show.show()
-
-    
-    #middle_man.setProcessProperties (classifier.process)
 
     # Call middle_man.run who will read from input queue, process, and write to output queue
     middle_man.run()
