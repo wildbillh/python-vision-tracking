@@ -58,7 +58,7 @@ def main():
     mm_process_props = properties[constants.PROCESSING_PROPS]
     mm_process_props["processFunc"] = classifier.process
     
-    middle_man = ThreadedMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
+    middle_man = MiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
                                     outputProps = mm_output_props, processProps = mm_process_props)
 
     start = time.time()

@@ -1,4 +1,4 @@
-import logging, time
+import logging, sys, time
 from queue import Queue
 from threading import Thread
 from typing import Tuple
@@ -105,84 +105,63 @@ class MiddleMan:
             
             if iter_count > self.input_warmup_iterations:       
                 raise Exception("No data in start_queue after timeout period")  
-            
-    # --------------------------------------------------------------------------------------
-    
-    def run (self):
+
+    def process (self, frameTuple):
         """
-            Start the non threaded run 
+            This method is overwritten by a child class, else it just returns the frame and props
+            that were sent to it. 
         """
-        start = time.time()
         
-        # If we defined a warmup period for the input queue, execute it
-        if self.input_warmup_sleep != 0:
-            self.WarmUpInputQueue()
-        
-        # Count the frames
-        frame_count = 0
-        # Set a boolean that is set to true if input is complete
-        exit_when_queues_empty = False
-        
-        # Main loop
-        while self.should_run: 
-            print(self.in_q.qsize(), self.out_q.qsize(), flush=True)
-            # If the input queue has frames and the output queue is not full, process a frame
-            if not self.in_q.empty() and not self.out_q.full():
-           
-                frame_tuple = self.in_q.get()
-                self.out_q.put(self.process_func(frame_tuple))
-                frame_count += 1
-            
-            else: # Either in queue is empty or out queue is full, so sleep
-                time.sleep(self.loop_wait)
-
-             # if exit when empty is set, set exit bool when queues are empty
-            if exit_when_queues_empty and self.in_q.empty():
-                
-                if self.out_q.empty():
-                    self.should_run = False 
-                # Tell output to quit when q is depleted
-                elif not self.output_stop_called:
-                    print("Telling output to stop", flush = True)
-                    self.output_stop_when_q_empty_func()
-                    self.output_stop_called = True
-                   
-
-            # Check to see if the input class is complete
-            if not exit_when_queues_empty and self.input_is_done_test():
-                print ("Quit receieved from Capture Manager", flush=True)
-                exit_when_queues_empty = True
-                continue
-
-            if self.output_is_done_test():
-                print ('Cancel request received from Video Show', flush=True)
-                if (self.input_shut_down != None):
-                    self.input_shut_down()
-                self.should_run = False  
+        if self.first_process_call:
+            logger.info ("Warning: The process() method is usually overwritten by a child class")
+            self.first_process_call = False
+        return (frameTuple)
     
-        run_time = time.time() - start
-        print(f'{frame_count} frames in {run_time}s, fps = {frame_count / run_time}', flush=True)
+    # -----------------------------------------------------------------------
+    # The _functions below are not too practical in the non threaded version of the class.
+    # The purpose for them is to allow the same run() method to be used in the non-threaded 
+    # and threaded class
 
-# =============================================================================
+    def _prepare(self):
+        self.last_process_tuple = None
+        self.read_frame_number = self.write_frame_number = 0
 
-class ThreadedMiddleMan (MiddleMan):
+    # -----------------------------------------------------------------------
+    
+    def _submit (self, frame_tuple):
 
-    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
-                 outputProps: dict, processProps: dict):
-        
-        # Call the Base class constructor
-        super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, 
-                         outputProps=outputProps, processProps=processProps)
-        
-        self.daemon = None       
+        self.last_process_tuple = self.process(frame_tuple)
+        self.write_frame_number += 1
+        return
+
+    # -----------------------------------------------------------------------
+
+    def _receive (self):
+        self.read_frame_number += 1
+        return (True, self.last_process_tuple)
+    
+    # -----------------------------------------------------------------------
+    
+    def _isFull(self):
+        return False
+    
+    # -----------------------------------------------------------------------
+    
+    def _shutdown (self):
+        pass
 
     # ---------------------------------------------------------------------------------
 
     def run (self):
+        """
+            This method does the real work of managing queues and threadpools. The end result
+            is that the self.process() method is called on a frame and when complete, the frame is 
+            written to the output queue.
+            Note that by using the _methods(), the same run() method can be used by threaded and 
+            non-thread versions
+        """
       
         self.should_run = True
-        read_frame_number = 0
-        write_frame_number = 0
         start = time.time()
         
         # If we defined a warmup period for the input queue, execute it
@@ -192,25 +171,25 @@ class ThreadedMiddleMan (MiddleMan):
             self.WarmUpInputQueue()
 
         #thread_pool = FIFOThreadPool(self.process_func, self.threads)
-        thread_pool = FIFOThreadPool(self.process, self.threads)
+        #thread_pool = FIFOThreadPool(self.process, self.threads)
+        self._prepare()
         exit_when_queues_empty = False
     
         # Main loop
         while self.should_run:
-
+           
             # check input queue and thread pool insertion availability
-            if not self.in_q.empty() and not thread_pool.isFull():
-
+            if not self.in_q.empty() and not self._isFull(): #self._isFull():
                 frame_tuple = self.in_q.get()
-                thread_pool.submit(write_frame_number, frame_tuple)
-                write_frame_number += 1
+                self._submit(frame_tuple)
 
             # Check to see if a processed frame is available
-            if not self.out_q.full():
-                done, processed_tuple = thread_pool.receive(read_frame_number)
+            if not self.out_q.full():           
+                done, processed_tuple = self._receive()
+
+                # If success, write the processed frame to the output queue
                 if done and processed_tuple is not None:
                     self.out_q.put(processed_tuple)
-                    read_frame_number += 1
            
             # if exit when empty is set, set exit bool when queues are empty
             if exit_when_queues_empty and self.in_q.empty():
@@ -236,19 +215,63 @@ class ThreadedMiddleMan (MiddleMan):
                 if (self.input_shut_down != None):
                     self.input_shut_down()
             else:
-                time.sleep(self.loop_wait)
-            
+                time.sleep(self.loop_wait)    
 
-        thread_pool.shutdown()
+        self._shutdown()
+        logger.info(f'from mm: {self.write_frame_number} frames, {self.write_frame_number / (time.time() - start)} fps')
+
+
+
+# =============================================================================
+
+class ThreadedMiddleMan (MiddleMan):
+
+    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
+                 outputProps: dict, processProps: dict):
+        
+        # Call the Base class constructor
+        super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, 
+                         outputProps=outputProps, processProps=processProps)
+        
+        self.daemon = None       
+
+    # -----------------------------------------------------------------------
+
+    def _prepare (self):
+
+        self.thread_pool = FIFOThreadPool(self.process, self.threads) 
+        self.read_frame_number = self.write_frame_number = 0   
+
+    # -----------------------------------------------------------------------
+    
+    def _submit (self, frame_tuple):
+
+        self.thread_pool.submit(self.write_frame_number, frame_tuple)
+        self.write_frame_number += 1
+        return
+
+    # -----------------------------------------------------------------------
+    
+    def _receive (self):
+
+        done, process_tuple = self.thread_pool.receive(self.read_frame_number)
+        if done and process_tuple is not None:
+            self.read_frame_number += 1
+
+        return (done, process_tuple)
+    
+    # -----------------------------------------------------------------------
+    
+    def _isFull(self):
+        return self.thread_pool.isFull()
+    
+    # -----------------------------------------------------------------------
+    
+    def _shutdown (self):
+        self.thread_pool.shutdown()
         
 
-        logger.info(f'from mm: {write_frame_number} frames, {write_frame_number / (time.time() - start)} fps')
-        
-        """
-        try:
-            self.daemon.join()
-        except: Exception
-        """
+    
 
     # -----------------------------------------------------------------
 
