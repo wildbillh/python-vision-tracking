@@ -1,3 +1,4 @@
+
 import ast
 import cv2
 import numpy as np
@@ -58,9 +59,8 @@ def importProperties(filename='./app.properties') -> dict:
         try:
             properties_dict[item[0]] = ast.literal_eval(item[1].data)
         except BaseException: 
-            print(item, type(item))
             properties_dict[item[0]] = str(item[1].data)
-
+            
     verifyRequiredProperties(properties_dict)
 
     return properties_dict

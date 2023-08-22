@@ -1,11 +1,11 @@
-import cv2
-import time
+import cv2, logging, time
 from threading import Thread
 from queue import Queue
 from typing import Dict, Tuple, Union
 from app.dependencies import constants
 from app.dependencies.utils import mergeWithDefault
 
+logger = logging.getLogger()
 
 class VideoShow:
     """
@@ -156,9 +156,9 @@ class VideoShow:
             # Generate a file with the current time
             filename = f'{self.captureDir}/{int(time.time() * 1000)}.jpg'
             if cv2.imwrite(filename, frame):
-                print(f'Captured frame to: {filename}', flush=True)
+                logger.info(f'Captured frame to: {filename}')
             else:
-                print(f'Write of file: {filename} failed')
+                logger.info(f'Write of file: {filename} failed')
 
             return (True, None)
 
@@ -245,7 +245,7 @@ class ThreadedVideoShow (VideoShow):
             if self.stop_on_empty_queue and self.q.empty():
                 self.should_run = False
 
-        print("End of vs loop", flush=True)
+        logger.debug("End of vs loop")
         self.stop()
         
 
@@ -255,9 +255,10 @@ class ThreadedVideoShow (VideoShow):
         """
             Stop the thread by setting the should_run bool to False
         """
-        print('vs.stop() called', flush=True)
+        
         self.should_run = False
         if self.daemon != None:
+            logger.debug('vs.stop() called')
             try:
                 self.daemon.join()
             except Exception:
@@ -275,6 +276,6 @@ class ThreadedVideoShow (VideoShow):
     # -------------------------------------------------------------------------------
 
     def shouldStopOnEmptyQueue (self):
-        print("Stop on empty called")
+        logger.debug("Stop on empty called")
         self.stop_on_empty_queue = True
         

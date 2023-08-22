@@ -3,6 +3,8 @@ from queue import Queue
 import time
 import sys
 import numpy as np
+import logging
+
 
 from app.dependencies.cl_parsing import parse_args
 from app.dependencies import constants
@@ -12,8 +14,9 @@ from app.dependencies.filecapturemanager import FileCaptureManager, ThreadedFile
 from app.dependencies.middleman import MiddleMan, ThreadedMiddleMan
 from app.dependencies.kbmiddleman import KBMiddleMan
 from app.dependencies.classifier import Classifier
+from app.dependencies.loggerconfig import configure_logger
 
-
+logger = logging.getLogger()
 def main():
 
     
@@ -22,6 +25,9 @@ def main():
 
     # get the properties from the file
     properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])
+
+    
+    configure_logger(properties[constants.LOG_LEVEL]) 
 
     # Create the 2 queues
     start_queue = Queue(maxsize=64)
@@ -66,8 +72,8 @@ def main():
     middle_man.run()
     
     vs_stats = video_show.stats()
-    print (f'from cm: {capture_manager.stats()} frames')
-    print (f'from vs: {vs_stats[0]} frames, {vs_stats[1]} fps')
+    logger.info(f'from cm: {capture_manager.stats()} frames')
+    logger.info(f'from vs: {vs_stats[0]} frames, {vs_stats[1]} fps')
 
     # Explicitly call the constructors so that thread.join() will be called
     del(video_show)
@@ -77,6 +83,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
+        logging.shutdown()
     except BaseException as e:
         # print (e)
         traceback.print_exc()

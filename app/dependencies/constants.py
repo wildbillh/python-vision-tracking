@@ -14,7 +14,8 @@ CL_SHOW_TIME_DEFAULT = False
 
 # ---------------------- Properties -------------------------
 WINDOW_NAME = 'windowName'
-
+DEFAULT_LOG_LEVEL='INFO'
+LOG_LEVEL = 'logLevel'
 
 TIME_COLOR = 'timeColor'
 TIME_THICKNESS = 'timeThickness'

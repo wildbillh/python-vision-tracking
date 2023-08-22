@@ -1,12 +1,12 @@
 from queue import Queue
 from threading import Thread
-import time
+import cv2, logging, time
 import cv2
 import numpy as np
 from typing import Tuple, Union
 from app.dependencies.capturemanager import CaptureManager
 
-
+logger = logging.getLogger()
 
 class FileCaptureManager (CaptureManager):
 

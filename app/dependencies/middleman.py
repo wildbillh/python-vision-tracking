@@ -1,4 +1,4 @@
-import time
+import logging, time
 from queue import Queue
 from threading import Thread
 from typing import Tuple
@@ -7,6 +7,7 @@ from app.dependencies.fifothreadpool import FIFOThreadPool
 import cv2
 import numpy as np
 
+logger = logging.getLogger()
 
 class MiddleMan:
     """
@@ -217,19 +218,19 @@ class ThreadedMiddleMan (MiddleMan):
                     self.should_run = False
                     continue
                 elif not self.output_stop_called:
-                    print("output stop on empty called")
+                    logger.debug("output stop on empty called")
                     self.output_stop_called = True
                     self.should_run = False
 
             # Check to see if the input class is complete
             if not exit_when_queues_empty and self.input_is_done_test():
-                print ("Input is depleted", flush=True)
+                logger.debug ("Input is depleted")
                 # Set the bool so that we'll exit when queues are empty
                 exit_when_queues_empty = True              
 
             # Check the ouput to see if the user wants to quit
             if self.output_is_done_test():
-                print ('Cancel request received from Ouput', flush=True)
+                logger.info('Cancel request received from Ouput')
                 self.should_run = False 
                 # Since the user wants to quit, tell the input to queue
                 if (self.input_shut_down != None):
@@ -241,7 +242,7 @@ class ThreadedMiddleMan (MiddleMan):
         thread_pool.shutdown()
         
 
-        print(f'from mm: {write_frame_number} frames, {write_frame_number / (time.time() - start)} fps', flush=True)
+        logger.info(f'from mm: {write_frame_number} frames, {write_frame_number / (time.time() - start)} fps')
         
         """
         try:
@@ -258,6 +259,6 @@ class ThreadedMiddleMan (MiddleMan):
         """
         
         if self.first_process_call:
-            print ("Warning: The process() method is usually overwritten by a child class", flush=True)
+            logger.info ("Warning: The process() method is usually overwritten by a child class")
             self.first_process_call = False
         return (frameTuple)
