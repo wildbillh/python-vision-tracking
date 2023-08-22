@@ -1,9 +1,7 @@
 
-import ast
-import cv2
-import numpy as np
+import ast, cv2, numpy as np
 from jproperties import Properties
-from typing import Dict, Type
+from typing import Dict
 from app.dependencies import constants
 
 USE_CUDA = False

@@ -1,7 +1,6 @@
 
+import cv2, numpy as np
 from queue import Queue
-import numpy as np
-import cv2
 from app.dependencies.middleman import ThreadedMiddleMan
 
 

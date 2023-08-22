@@ -1,10 +1,6 @@
-import cv2
-import numpy as np
+import cv2, numpy as np
 from typing import Tuple
 from app.dependencies.utils import mergeWithDefault
-
-
-
 
 class Classifier:
 

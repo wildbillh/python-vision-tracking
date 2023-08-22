@@ -1,11 +1,6 @@
-import logging, sys, time
+import logging, time
 from queue import Queue
-from threading import Thread
-from typing import Tuple
-from collections.abc import Callable
 from app.dependencies.fifothreadpool import FIFOThreadPool
-import cv2
-import numpy as np
 
 logger = logging.getLogger()
 

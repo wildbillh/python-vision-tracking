@@ -1,6 +1,4 @@
-import cv2
-import numpy as np
-import time
+import cv2, numpy as np
 from queue import Queue
 from threading import Thread
 from typing import Tuple, Union

@@ -1,8 +1,6 @@
+import cv2, logging, time, numpy as np
 from queue import Queue
 from threading import Thread
-import cv2, logging, time
-import cv2
-import numpy as np
 from typing import Tuple, Union
 from app.dependencies.capturemanager import CaptureManager
 

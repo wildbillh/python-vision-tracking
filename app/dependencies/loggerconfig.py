@@ -1,9 +1,8 @@
-import logging.config
-import logging as log
+
+import logging
 from app.dependencies import constants
 
-logger = log.getLogger()
-
+logger = logging.getLogger()
 
 config = {   
         

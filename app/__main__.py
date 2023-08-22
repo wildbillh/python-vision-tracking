@@ -1,10 +1,5 @@
-import traceback
+import logging, traceback, sys
 from queue import Queue
-import time
-import sys
-import numpy as np
-import logging
-
 
 from app.dependencies.cl_parsing import parse_args
 from app.dependencies import constants
@@ -26,7 +21,7 @@ def main():
     # get the properties from the file
     properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])
 
-    
+    # Configure the logger with the level from the properties file
     configure_logger(properties[constants.LOG_LEVEL]) 
 
     # Create the 2 queues
@@ -49,7 +44,6 @@ def main():
     # Get a class for processing the frames
     classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
 
-    
     # Build the input and output properties for the class
     mm_input_props = {"inputDone": capture_manager.isDone, "terminateInput": capture_manager.stop, "warmupProps": (0.002, 20)}
     mm_output_props = {"outputDone": video_show.isDone, "outputStopWhenQEmpty": video_show.shouldStopOnEmptyQueue}
@@ -58,21 +52,22 @@ def main():
     mm_process_props = properties[constants.PROCESSING_PROPS]
     mm_process_props["processFunc"] = classifier.process
     
-    middle_man = MiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
+    middle_man = KBMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
                                     outputProps = mm_output_props, processProps = mm_process_props)
-
-    start = time.time()
     
-    # Start the thread reading from the source
+    # Start the thread that reads from the source
     capture_manager.read()
+    
     # Start the thread that shows the images
     video_show.show()
 
-    # Call middle_man.run who will read from input queue, process, and write to output queue
+    # Call middle_man.run(). It reads from input queue, processes, and writes to output queue.
+    # It's not threaded so when complete processing is over.
     middle_man.run()
     
-    vs_stats = video_show.stats()
+    # Show the stats
     logger.info(f'from cm: {capture_manager.stats()} frames')
+    vs_stats = video_show.stats()
     logger.info(f'from vs: {vs_stats[0]} frames, {vs_stats[1]} fps')
 
     # Explicitly call the constructors so that thread.join() will be called

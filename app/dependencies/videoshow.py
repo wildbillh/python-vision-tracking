@@ -1,7 +1,7 @@
 import cv2, logging, time
 from threading import Thread
 from queue import Queue
-from typing import Dict, Tuple, Union
+from typing import Tuple, Union
 from app.dependencies import constants
 from app.dependencies.utils import mergeWithDefault
 
