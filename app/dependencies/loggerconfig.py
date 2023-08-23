@@ -42,7 +42,6 @@ def configure_logger (level: str):
     """
   
     valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-    print (logging.config)
 
     # If the level is supplied
     if (level is not None and isinstance(level, str) and level in valid_levels):
