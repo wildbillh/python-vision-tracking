@@ -2,7 +2,7 @@
 # ------------------------ CL Args ---------------------------
 
 CL_PROPERTY_FILE='properties'
-CL_PROPERTY_FILE_DEFAULT = './app.properties'
+CL_PROPERTY_FILE_DEFAULT = 'app.properties'
 CL_SOURCE_FILE='sourceFile'
 CL_SOURCE_FILE_DEFAULT = 'clips/fr-trans2.mp4'
 CL_CLASSIFIER_FILE='classifier'

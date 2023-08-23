@@ -5,15 +5,26 @@ from typing import List
 
 
 
-def parse_args(_args: List[str]) -> dict:
+def parse_args(args: List[str], systemArgs: List[str]) -> dict:
+    
+    # Parse the system command line arguments to get the module name
+    system_parser = argparse.ArgumentParser()
+    system_parser.add_argument(
+        "-m",
+        dest = "module",
+        type = str,
+    )
 
+    module = vars(system_parser.parse_known_args(systemArgs)[0])["module"]
+
+    # Parse the user command line arguments
     parser = argparse.ArgumentParser()
 
     parser.add_argument (
         f'--{constants.CL_PROPERTY_FILE}',
         dest = constants.CL_PROPERTY_FILE,
         help = 'Location of property file',
-        default = constants.CL_PROPERTY_FILE_DEFAULT,
+        default = f'{module}/{constants.CL_PROPERTY_FILE_DEFAULT}',
         type = str
     )
 
@@ -22,7 +33,7 @@ def parse_args(_args: List[str]) -> dict:
         f'--{constants.CL_SOURCE_FILE}',
         dest = constants.CL_SOURCE_FILE,
         help = 'File to read from',
-        default = constants.CL_SOURCE_FILE_DEFAULT,
+        default = f'{module}/{constants.CL_SOURCE_FILE_DEFAULT}',
         type = str
     )
 
@@ -30,7 +41,7 @@ def parse_args(_args: List[str]) -> dict:
         f'--{constants.CL_CLASSIFIER_FILE}',
         dest =constants.CL_CLASSIFIER_FILE,
         help = 'Classifier file used for Cascade',
-        default = constants.CL_CLASSIFIER_FILE_DEFAULT,
+        default = f'{module}/{constants.CL_CLASSIFIER_FILE_DEFAULT}',
         type = str
     )
 
@@ -50,6 +61,16 @@ def parse_args(_args: List[str]) -> dict:
         type = bool
     )
 
+    return_dict = vars(parser.parse_args(args))
     
+    # Parse the system command line arguments to get the module name
+    system_parser = argparse.ArgumentParser()
+    system_parser.add_argument(
+        "-m",
+        dest = "module",
+        type = str,
+    )
 
-    return vars(parser.parse_args(_args))
+    # Add the module name to the dictionary
+    return_dict["module"] = vars(system_parser.parse_known_args(systemArgs)[0])["module"]
+    return return_dict
