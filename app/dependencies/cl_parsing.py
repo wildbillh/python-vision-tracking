@@ -61,16 +61,10 @@ def parse_args(args: List[str], systemArgs: List[str]) -> dict:
         type = bool
     )
 
+    # Get the user CLA's as a dictionary
     return_dict = vars(parser.parse_args(args))
-    
-    # Parse the system command line arguments to get the module name
-    system_parser = argparse.ArgumentParser()
-    system_parser.add_argument(
-        "-m",
-        dest = "module",
-        type = str,
-    )
 
     # Add the module name to the dictionary
     return_dict["module"] = vars(system_parser.parse_known_args(systemArgs)[0])["module"]
+    
     return return_dict
