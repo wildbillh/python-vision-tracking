@@ -142,8 +142,8 @@ class MiddleMan:
     
     # -----------------------------------------------------------------------
     
-    def _shutdown (self):
-        pass
+    def shutdown (self):
+        self.should_run = False
 
     # ---------------------------------------------------------------------------------
 
@@ -212,7 +212,7 @@ class MiddleMan:
             else:
                 time.sleep(self.loop_wait)    
 
-        self._shutdown()
+        self.shutdown()
         logger.info(f'from mm: {self.write_frame_number} frames, {self.write_frame_number / (time.time() - start)} fps')
 
 
@@ -262,11 +262,11 @@ class ThreadedMiddleMan (MiddleMan):
     
     # -----------------------------------------------------------------------
     
-    def _shutdown (self):
+    def shutdown (self):
+        super().shutdown()
+        time.sleep(0.25)
         self.thread_pool.shutdown()
         
-
-    
 
     # -----------------------------------------------------------------
 
