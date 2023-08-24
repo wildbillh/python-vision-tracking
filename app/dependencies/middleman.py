@@ -38,7 +38,7 @@ class MiddleMan:
         # Number of threads for calling process functions
         self.threads = processProps["threads"] if "threads" in processProps else 2
         # Process function 
-        self.process_func = processProps["processFunc"]
+        self.process_class = processProps["processClass"]
         
         
         # The following values can be none or [int, int]
@@ -65,16 +65,18 @@ class MiddleMan:
          
         if not "inputDone" in inputProps:
             raise Exception("Missing inputDone in inputProps")
+        
         if not "terminateInput" in inputProps:
             raise Exception("Missing terminateInput in inputProps")
+        
         if not "warmupProps" in inputProps:
             raise Exception("Missing warmupProps in inputProps")
         
         if not "outputDone" in outputProps:
             raise Exception("Missing outputDone in OutputProps")
         
-        if not "processFunc" in processProps:
-            raise Exception("Missing processFunc in processProps")
+        if not "processClass" in processProps:
+            raise Exception("Missing processClass in processProps")
         
         if not "frameDims" in processProps:
             processProps["frameDims"] = None
@@ -101,6 +103,8 @@ class MiddleMan:
             if iter_count > self.input_warmup_iterations:       
                 raise Exception("No data in start_queue after timeout period")  
 
+    # ---------------------------------------------------------------------------------------
+    
     def process (self, frameTuple):
         """
             This method is overwritten by a child class, else it just returns the frame and props
@@ -214,8 +218,6 @@ class MiddleMan:
 
         self.shutdown()
         logger.info(f'from mm: {self.write_frame_number} frames, {self.write_frame_number / (time.time() - start)} fps')
-
-
 
 # =============================================================================
 

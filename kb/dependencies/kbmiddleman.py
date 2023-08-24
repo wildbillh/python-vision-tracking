@@ -50,7 +50,7 @@ class KBMiddleMan (ThreadedMiddleMan):
         process_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2GRAY)  
         
         # Get the roi's and levels from the classifier
-        objects, levels = self.process_func(process_frame)
+        objects, levels = self.process_class.process(process_frame)
          
         # If the finished frame dimension differs from  the actual frame, convert it
         if not np.array_equal(actual_dim_size, finish_dim_size):

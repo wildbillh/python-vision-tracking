@@ -35,7 +35,7 @@ class Main:
     # --------------------------------------------------------------------
     def run(self):
 
-        # Parse the CLA
+        # Parse the user cla and the system cla. From the system cla we get the module name
         args = parse_args(sys.argv[1:], sys.orig_argv)
 
         # get the properties from the file
@@ -53,8 +53,8 @@ class Main:
         self.capture_manager.open(args["sourceFile"])
 
         frame_props = self.capture_manager.get_frame_properties()
-        frame_rate = 0 #frame_props["rate"]
-        frame_dims = [frame_props["height"], frame_props["width"]]
+        frame_rate = frame_props["rate"]
+        #frame_dims = [frame_props["height"], frame_props["width"]]
     
         # Get a class with a threaded show() function to write the output
         props = properties[constants.VIDEO_SHOW_PROPS]
@@ -72,7 +72,7 @@ class Main:
     
         # Get the process props from the properties file and add our process function
         mm_process_props = properties[constants.PROCESSING_PROPS]
-        mm_process_props["processFunc"] = classifier.process
+        mm_process_props["processClass"] = classifier
     
         self.middle_man = KBMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
                                     outputProps = mm_output_props, processProps = mm_process_props)
