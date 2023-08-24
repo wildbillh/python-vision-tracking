@@ -66,13 +66,13 @@ class VideoShow:
 
     # -------------------------------------------------------------
 
-    def showSingleFrame (self, frame, frameProps: dict = {}, waitTimeMs: int = 1000) -> None:
+    def showSingleFrame (self, processedDict: dict, waitTimeMs: int = 1000) -> None:
         
         if self.show_time:
-            self.showTimeInWindow(frame, frameProps) 
+            self.showTimeInWindow(processedDict["frame"], processedDict["props"]) 
 
         # Show the frame
-        cv2.imshow(self.window_name, frame)
+        cv2.imshow(self.window_name, processedDict["frame"])
         cv2.waitKey(waitTimeMs)  
 
     # ---------------------------------------------------------------------------------
@@ -91,7 +91,7 @@ class VideoShow:
 
     # -------------------------------------------------------------------------------------
     
-    def show(self, frame, frameProps: dict = {}) -> Tuple[bool, Union[str, None]]:
+    def show(self, processedDict: dict) -> Tuple[bool, Union[str, None]]:
         """
             Show the given frame in the named window. Check the keypresses for
             special operations
@@ -103,8 +103,8 @@ class VideoShow:
         
        
         # Write the time and frame on the window is show_time is set
-        if self.show_time and frameProps:
-            frame = self.showTimeInWindow(frame, frameProps)
+        if self.show_time and processedDict["props"]:
+            frame = self.showTimeInWindow(processedDict["frame"], processedDict["props"])
             
             
         # If this is the first loop set the load times
@@ -120,7 +120,7 @@ class VideoShow:
         
 
         # Show the frame   
-        cv2.imshow(self.window_name, frame)
+        cv2.imshow(self.window_name, processedDict["frame"])
         self.frame_count += 1
         
 
@@ -237,10 +237,11 @@ class ThreadedVideoShow (VideoShow):
         while self.should_run:
 
             try:
-                frame, props = self.q.get()
+                processedDict = self.q.get()
+                #print(processedDict, flush=True)
                            
                 if self.show_output:
-                    success, action = super().show(frame, props)
+                    success, action = super().show(processedDict)
 
                     if not success:   
                         self.stop()

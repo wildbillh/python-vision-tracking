@@ -17,6 +17,7 @@ class KBMiddleMan (ThreadedMiddleMan):
         process_dim_size = self.process_dims if self.process_dims is not None else self.frame_dims
         finish_dim_size = self.finish_dims if self.finish_dims is not None else self.frame_dims
 
+        # Calculate the scaling needed (process to finished) to draw the rectangles 
         self.process_to_final_conversion = None
         if not np.array_equal(process_dim_size, finish_dim_size):
             self.process_to_final_conversion = finish_dim_size[0] / float(process_dim_size[0])
@@ -24,7 +25,7 @@ class KBMiddleMan (ThreadedMiddleMan):
 
     # --------------------------------------------------------------------------    
 
-    def process (self, frameTuple):
+    def process (self, frameTuple) -> dict:
 
         """
             Override the parent process() method. 
@@ -52,7 +53,6 @@ class KBMiddleMan (ThreadedMiddleMan):
         # Get the roi's and levels from the classifier
         objects, levels = self.process_class.process(process_frame)
           
-      
         # The highest level rectangle will be green, all others blue
         max_color = (0,255,0)
         color = (255,0,0)
@@ -75,4 +75,4 @@ class KBMiddleMan (ThreadedMiddleMan):
                 frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
 
         # Return the processed frame and the given frame properties
-        return (frame, props) 
+        return ({"frame": frame, "props": props}) 

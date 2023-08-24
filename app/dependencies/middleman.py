@@ -190,12 +190,11 @@ class MiddleMan:
 
             # Check to see if a processed frame is available
             if not self.out_q.full():           
-                done, processed_tuple = self._receive()
+                done, processed_dict = self._receive()
 
                 # If success, write the processed frame to the output queue
-                if done and processed_tuple is not None:
-                    self.out_q.put(processed_tuple)
-           
+                if done and processed_dict is not None:
+                    self.out_q.put(processed_dict)
             # if exit when empty is set, set exit bool when queues are empty
             if exit_when_queues_empty and self.in_q.empty():
                 if self.out_q.empty():
