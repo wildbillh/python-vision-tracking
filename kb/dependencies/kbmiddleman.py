@@ -35,9 +35,10 @@ class KBMiddleMan (ThreadedMiddleMan):
         finish_dim_size = self.finish_dims if self.finish_dims is not None else actual_dim_size
 
         # if the process frame is not the size of the finish frame, calculate the mutliplier
-        source_to_process_conversion = None 
+        process_to_final_conversion = None 
         if not np.array_equal(process_dim_size, finish_dim_size):
-            source_to_process_conversion = finish_dim_size[0] / float(process_dim_size[0])
+            process_to_final_conversion = finish_dim_size[0] / float(process_dim_size[0])
+
 
         # Get a process frame by either resizing or copying the input frame
         if self.process_dims is not None:
@@ -55,19 +56,27 @@ class KBMiddleMan (ThreadedMiddleMan):
         if not np.array_equal(actual_dim_size, finish_dim_size):
             frame = cv2.resize(src=frame, dsize=finish_dim_size)
 
-        color = (0,255,0)
+        
+        # The highest level rectangle will be green, all others blue
+        max_color = (0,255,0)
+        color = (255,0,0)
+
         # if the classifier found any roi's and levels
         if isinstance(levels, np.ndarray):
+            # Get the index of the level with the highest value
+            max_index = levels.argmax()
             object = None
             # For each roi, do something
             for i in range(levels.size):
                 object = objects[i]   
+    
                 # If the finished frame size is different from the process frame size, scale objects
-                object = object if source_to_process_conversion is None else np.multiply(object, source_to_process_conversion, casting='unsafe', dtype=int)
+                if process_to_final_conversion is not None and process_to_final_conversion != 1.0:
+                    object = (object * process_to_final_conversion).astype(int)
                 
-                # Write the rectagle
+                # Write the rectangle
                 x, y, w, h = object
-                frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
+                frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
 
         # Return the processed frame and the given frame properties
         return (frame, props) 

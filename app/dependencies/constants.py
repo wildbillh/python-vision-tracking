@@ -28,8 +28,6 @@ VIDEO_SHOW_PROPS = 'videoShowProps'
 PROCESSING_PROPS = 'processingProps'
 
 REQUIRED_PROPERTIES = {
-    TIME_COLOR: tuple,
-    TIME_THICKNESS: int,
     QUEUE_SIZE: int,
     SKIP_FRAME_SIZE: int,
     CLASSIFIER_PROPS: dict,

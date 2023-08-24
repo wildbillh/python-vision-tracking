@@ -45,8 +45,8 @@ class Main:
         configure_logger(properties[constants.LOG_LEVEL]) 
 
         # Create the 2 queues
-        start_queue = Queue(maxsize=64)
-        finish_queue = Queue(maxsize=64)
+        start_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
+        finish_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
 
         # Get a class with a threaded read() function to read from the source
         self.capture_manager = ThreadedFileCaptureManager(queue = start_queue)
