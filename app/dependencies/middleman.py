@@ -78,6 +78,12 @@ class MiddleMan:
         if not "processClass" in processProps:
             raise Exception("Missing processClass in processProps")
         
+        if not callable(processProps["processClass"].process):
+            raise Exception("Process class must have callable process() method")
+        
+        if not callable(processProps["processClass"].setProperties):
+            raise Exception("Process class must have callable setProperties() method")
+        
         if not "frameDims" in processProps:
             processProps["frameDims"] = None
         

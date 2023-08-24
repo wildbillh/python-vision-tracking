@@ -1,4 +1,4 @@
-import logging, traceback, signal, sys
+import logging, numpy as np, traceback, signal, sys
 from queue import Queue
 
 from app.dependencies.cl_parsing import parse_args
@@ -73,6 +73,7 @@ class Main:
         # Get the process props from the properties file and add our process function
         mm_process_props = properties[constants.PROCESSING_PROPS]
         mm_process_props["processClass"] = classifier
+        mm_process_props["frameDims"] = np.array([frame_props["width"], frame_props["height"]])
     
         self.middle_man = KBMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
                                     outputProps = mm_output_props, processProps = mm_process_props)
