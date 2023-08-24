@@ -51,6 +51,8 @@ class FileCaptureManager (CaptureManager):
         self.cap.set(cv2.CAP_PROP_POS_FRAMES,
                      self.cap.get(cv2.CAP_PROP_POS_FRAMES) - skip_frames)   
         
+# =============================================================================
+
 class ThreadedFileCaptureManager (FileCaptureManager):
 
     def __init__(self, queue: Queue, skipFrameSize: int = 150):
@@ -85,7 +87,7 @@ class ThreadedFileCaptureManager (FileCaptureManager):
             if not self.q.full():
                 success, frame, props = super().read()
                 if success:
-                    self.q.put((frame, props))
+                    self.q.put({"frame": frame, "props": props})
                 else:
                     self.stop()
             else:

@@ -185,8 +185,8 @@ class MiddleMan:
            
             # check input queue and thread pool insertion availability
             if not self.in_q.empty() and not self._isFull(): #self._isFull():
-                frame_tuple = self.in_q.get()
-                self._submit(frame_tuple)
+                frame_dict = self.in_q.get()
+                self._submit(frame_dict)
 
             # Check to see if a processed frame is available
             if not self.out_q.full():           

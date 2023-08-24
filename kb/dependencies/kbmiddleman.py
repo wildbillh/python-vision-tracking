@@ -25,7 +25,7 @@ class KBMiddleMan (ThreadedMiddleMan):
 
     # --------------------------------------------------------------------------    
 
-    def process (self, frameTuple) -> dict:
+    def process (self, frameDict: dict) -> dict:
 
         """
             Override the parent process() method. 
@@ -34,7 +34,8 @@ class KBMiddleMan (ThreadedMiddleMan):
             3. Do post-processing
         """
 
-        frame, props = frameTuple 
+        frame = frameDict["frame"]
+        props = frameDict["props"]
         process_frame = None
 
         # Get a process frame by either resizing or copying the input frame
