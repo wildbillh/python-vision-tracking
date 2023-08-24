@@ -21,7 +21,8 @@ class VideoShow:
     def __init__(self, props={}):
         
         default_props = {"clipCaptureDir": "clips/capture", "showTime": False, 
-                         "windowName": "Object Detection", "showOutput": True}
+                         "windowName": "Object Detection", "showOutput": True,
+                         "timeColor": (10,255,10), "timeThickness": 2}
         
         # Merge with whatever is sent in
         self.props = mergeWithDefault(props, default_props)
@@ -68,17 +69,25 @@ class VideoShow:
     def showSingleFrame (self, frame, frameProps: dict = {}, waitTimeMs: int = 1000) -> None:
         
         if self.show_time:
-            text = f'{(frameProps["time"] / 1000):.3f} : {frameProps["frame"]}'
-            text = text.rjust(15)
+            self.showTimeInWindow(frame, frameProps) 
 
-            frame = cv2.putText(img=frame, text=text, org=(00, int(frameProps["height"] - 50)),
-                                    fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2.0,
-                                    color=self.properties[constants.TIME_COLOR],
-                                    thickness=self.properties[constants.TIME_THICKNESS]) 
         # Show the frame
         cv2.imshow(self.window_name, frame)
         cv2.waitKey(waitTimeMs)  
 
+    # ---------------------------------------------------------------------------------
+
+    def showTimeInWindow (self, frame, frameProps):
+
+        if frameProps:    
+            text = f'{(frameProps["time"] / 1000):.3f} : {frameProps["frame"]}'
+            text = text.rjust(15)
+            frame = cv2.putText(img=frame, text=text, org=(0, 30),
+                                    fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2.0,
+                                    color=self.props[constants.TIME_COLOR],
+                                    thickness=self.props[constants.TIME_THICKNESS],
+                                    bottomLeftOrigin=False)  
+        return frame
 
     # -------------------------------------------------------------------------------------
     
@@ -94,14 +103,9 @@ class VideoShow:
         
        
         # Write the time and frame on the window is show_time is set
-        if self.show_time:
-            text = f'{(frameProps["time"] / 1000):.3f} : {frameProps["frame"]}'
-            text = text.rjust(15)
-
-            frame = cv2.putText(img=frame, text=text, org=(00, int(frameProps["height"] - 50)),
-                                    fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2.0,
-                                    color=self.properties[constants.TIME_COLOR],
-                                    thickness=self.properties[constants.TIME_THICKNESS])
+        if self.show_time and frameProps:
+            frame = self.showTimeInWindow(frame, frameProps)
+            
             
         # If this is the first loop set the load times
         if self.first_load_time == 0:
@@ -165,6 +169,8 @@ class VideoShow:
         # Return the value of the key pressed of rewind or ff
         elif keypress == ord(VideoShow.REWIND) or keypress == VideoShow.FAST_FOWARD:
             return (True, chr(keypress))
+
+    # --------------------------------------------------------------------------------------------
 
     def stats (self):
         return (self.frame_count, self.frame_count / (self.last_load_time - self.first_load_time) if self.last_load_time > 0 else (0,0))
@@ -234,7 +240,7 @@ class ThreadedVideoShow (VideoShow):
                 frame, props = self.q.get()
                            
                 if self.show_output:
-                    success, action = super().show(frame)
+                    success, action = super().show(frame, props)
 
                     if not success:   
                         self.stop()

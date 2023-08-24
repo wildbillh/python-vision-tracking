@@ -65,8 +65,10 @@ class Main:
         classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
 
         # Build the input and output properties for the class
-        mm_input_props = {"inputDone": self.capture_manager.isDone, "terminateInput": self.capture_manager.stop, "warmupProps": (0.002, 20)}
-        mm_output_props = {"outputDone": self.video_show.isDone, "outputStopWhenQEmpty": self.video_show.shouldStopOnEmptyQueue}
+        mm_input_props = {"inputDone": self.capture_manager.isDone, "terminateInput": self.capture_manager.stop, 
+                          "warmupProps": (0.002, 20)}
+        mm_output_props = {"outputDone": self.video_show.isDone, 
+                           "outputStopWhenQEmpty": self.video_show.shouldStopOnEmptyQueue}
     
         # Get the process props from the properties file and add our process function
         mm_process_props = properties[constants.PROCESSING_PROPS]
