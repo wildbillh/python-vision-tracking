@@ -7,7 +7,7 @@ from app.dependencies import utils
 from app.dependencies.videoshow import VideoShow, ThreadedVideoShow
 from app.dependencies.filecapturemanager import FileCaptureManager, ThreadedFileCaptureManager
 from app.dependencies.middleman import MiddleMan, ThreadedMiddleMan
-from app.dependencies.kbmiddleman import KBMiddleMan
+from kb.dependencies.kbmiddleman import KBMiddleMan
 from app.dependencies.classifier import Classifier
 from app.dependencies.loggerconfig import configure_logger
 
