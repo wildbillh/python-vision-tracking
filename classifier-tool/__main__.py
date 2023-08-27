@@ -7,27 +7,39 @@ from app.dependencies.classifier import Classifier
 from typing import Tuple, Union
 
 class Main:
-    """"""
+    """
+        A tool for viewing a clip frame by frame and applying different classification 
+        properties to the each image
+    """
 
     def __init__(self):
         self.classifier = Classifier('classifier-tool/cascade/cascade-24stage.xml')
         self.config_change = False
 
+    # --------------------------------------------------------------------------
+    
     def run(self):
         """"""
         cv2.startWindowThread()
 
+        # Get the source
         fcm = FileCaptureManager()
         fcm.open('classifier-tool/clips/fr-trans2.mp4')
+
+        # Get the display 
         vs = VideoShow ({"windowName": "controls"})
         cv2.namedWindow("controls")
         
+        # Build the track bars
         track_bar = ClassifierTrackBar("controls", self.onChange)
         self.classifier.setProperties(track_bar.getValues())
         track_bar.load()
         
         should_run, frame, props = fcm.read()
+        
         while should_run:
+            # for each frame display the image with the classifier rectangles.
+            # if 'r' is pressed reclassify the current image
 
             process_frame = cv2.resize(src=frame, dsize=[960, 540])
             roi_tuple = self.getROIs(process_frame)
@@ -74,15 +86,24 @@ class Main:
     # ----------------------------------------------------------------------------
 
     def getROIs (self, frame):
-        """"""
+        """
+            Return the array of (objects, levels) from the classifier
+        """
         process_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
         return self.classifier.process(frame)
 
 
+    # ---------------------------------------------------------------------------
+
     def onChange (self, val):
-        """"""
+        """
+            Every time the trackbar changes, this function is called.
+            Take the trackbar data and modify the classifier properties
+        """
         
         self.classifier.setProperties(val)
+
+# ==================================================================================
 
 if __name__ == "__main__":
     try:
