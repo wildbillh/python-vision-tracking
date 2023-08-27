@@ -73,7 +73,10 @@ class VideoShow:
 
         # Show the frame
         cv2.imshow(self.window_name, processedDict["frame"])
-        cv2.waitKey(waitTimeMs)  
+        keypress = cv2.waitKey(waitTimeMs)  
+        if keypress == ord(VideoShow.QUIT):
+            return (False, None)
+        return (True, chr(keypress))
 
     # ---------------------------------------------------------------------------------
 

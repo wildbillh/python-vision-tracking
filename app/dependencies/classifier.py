@@ -15,6 +15,7 @@ class Classifier:
 
     def setProperties (self, props: dict={}):
 
+
          # Build the default properties for this classs
         default_props = {"minObjectSize": [18,18], "maxObjectSize": [128,128],
                         "scaleFactor": 1.09, "minNeighbors": 3}
