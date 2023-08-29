@@ -16,6 +16,7 @@ class VideoShow:
     REWIND = 'l'
     FAST_FOWARD = 'l'
     PAUSE = 'p'
+    ESCAPE = 27
 
 
     def __init__(self, props={}):
@@ -288,4 +289,88 @@ class ThreadedVideoShow (VideoShow):
     def shouldStopOnEmptyQueue (self):
         logger.debug("Stop on empty called")
         self.stop_on_empty_queue = True
+
+# =======================================================================================
+
+class SelectionVideoShow (VideoShow):
+    """
+        Class for selecting one or more rectangles of an image
+    """
         
+    def __init__ (self, props: dict = {}):
+
+        super().__init__(props)
+        cv2.namedWindow(self.window_name)
+        cv2.setMouseCallback(self.window_name, self.getSelection)
+
+        self.image_history = []
+        self.mouse_points = None
+        self.current_idx = 0
+        self.should_run = True
+
+    # -----------------------------------------------------------------------------------
+
+    def getSelection (self, event, x, y, flags, param):
+        """
+            Mouse Event handler. Draws interim and final rectangles
+        """
+
+        # Get the current image out of the history list
+        image = self.image_history[self.current_idx][0]
+    
+        # Store the starting point of the rectangle
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.mouse_points = [(x, y)]
+        
+        # Store the new rectangle and write it to the window
+        elif event == cv2.EVENT_LBUTTONUP:
+            
+            # Append the final point to the rect
+            self.mouse_points.append((x, y))
+            
+            # Make a copy of the image, draw the new rect and store the image and rectangle coords
+            new_image = image.copy()
+            cv2.rectangle(new_image, self.mouse_points[0], self.mouse_points[1], (0, 255, 0), 2)
+            self.image_history.append((new_image, (self.mouse_points[0],self.mouse_points[1])))
+            self.current_idx += 1
+            cv2.imshow(self.window_name, new_image)
+
+        # draw the interim rectangle
+        elif event == cv2.EVENT_MOUSEMOVE and flags == cv2.EVENT_FLAG_LBUTTON:
+            clone = image.copy()
+            cv2.rectangle(clone, self.mouse_points[0], (x, y), (0, 255, 0), 2)
+            cv2.imshow(self.window_name, clone)
+
+    # -----------------------------------------------------------------------------------------
+    
+    def show (self, _image):
+        """
+            Override the show() method of the base class
+        """
+        
+        # Store the given image into our history list
+        self.image_history.append((_image, None))
+
+        while self.should_run:
+        
+            # Show the image
+            image = self.image_history[self.current_idx][0]
+            cv2.imshow(self.window_name, image)
+
+            keypress = cv2.waitKey(0)
+            # if escape key is hit, delete the latest historical image and coords
+            if keypress == VideoShow.ESCAPE:
+                if len(self.image_history) > 1:                
+                    self.image_history.pop(len(self.image_history) -1) 
+                    self.current_idx -= 1
+            else:
+                self.should_run = False
+
+        # We're exiting, so get the list of rectangles and close the windows
+        rects = []
+        for i in range(1, len(self.image_history)):
+            rects.append(self.image_history[i][1])
+
+        cv2.destroyWindow(self.window_name)
+        return rects
+       
