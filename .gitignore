@@ -4,3 +4,4 @@ venv
 training/bin
 classifier-tool/clips
 classifier-tool/cascade
+selection-tool/*.jpg
