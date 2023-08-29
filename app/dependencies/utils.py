@@ -1,7 +1,7 @@
 
 import ast, cv2, numpy as np
 from jproperties import Properties
-from typing import Dict
+from typing import Dict, Tuple
 from app.dependencies import constants
 
 USE_CUDA = False
@@ -100,3 +100,30 @@ def mergeWithDefault (source: dict, default: dict) -> dict:
             print(f'Property {key} not found in defaults. Ignoring')
 
     return new
+
+# --------------------------------------------------------------------
+
+def removeROI (frame: np.ndarray, rect: Tuple[int,int,int,int], sourceDirection: str ='LEFT') -> np.ndarray:
+	"""
+		Given rectangle dimensions of a frame selection, replace the roi with an
+		equivalent copy in the given source direction
+	"""
+	x1, y1, x2, y2 = rect
+
+	# Get width and height of rectangle
+	width = x2-x1
+	height = y2 - y1
+
+	# Get a copy of the frame
+	frame_copy = frame.copy()
+
+	if sourceDirection == 'LEFT':	
+		frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, (x1 - width):x1, 0:3]
+	elif sourceDirection == 'RIGHT':
+		frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, x2:(x2 + width), 0:3]	
+	elif sourceDirection == 'TOP':
+		frame_copy[y1:y2, x1:x2, 0:3] = frame[(y1 - height):y1, x1:x2, 0:3]	
+	else: # BOTTOM
+		frame_copy[y1:y2, x1:x2, 0:3] = frame[y2:(y2 + height), x1:x2, 0:3]	
+
+	return frame_copy
