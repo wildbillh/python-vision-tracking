@@ -1,7 +1,7 @@
 import cv2, logging, time
 from threading import Thread
 from queue import Queue
-from typing import Tuple, Union
+from typing import Tuple, Union, Callable
 from app.dependencies import constants
 from app.dependencies.utils import mergeWithDefault
 
@@ -17,6 +17,8 @@ class VideoShow:
     FAST_FOWARD = 'l'
     PAUSE = 'p'
     ESCAPE = 27
+    CANCEL = 'c'
+    DONE = 'd'
 
 
     def __init__(self, props={}):
@@ -242,7 +244,6 @@ class ThreadedVideoShow (VideoShow):
 
             try:
                 processedDict = self.q.get()
-                #print(processedDict, flush=True)
                            
                 if self.show_output:
                     success, action = super().show(processedDict)
@@ -297,18 +298,38 @@ class SelectionVideoShow (VideoShow):
         Class for selecting one or more rectangles of an image
     """
         
-    def __init__ (self, props: dict = {}):
+    def __init__ (self, props: dict = {}, interimProcessFunc: Callable = None):
 
         super().__init__(props)
         cv2.namedWindow(self.window_name)
         cv2.setMouseCallback(self.window_name, self.getSelection)
 
+        # Store the images and rectangles so we can undo if needed
         self.image_history = []
+
         self.mouse_points = None
         self.current_idx = 0
         self.should_run = True
+        self.interim_process_func = self.drawFirstRectangle
+        self.using_external_interim_process_func = False
+        
+        # If an external interm process function is supplied, use it instead of drawFirstRectangle function
+        if interimProcessFunc:
+            self.interim_process_func = interimProcessFunc
+            self.using_external_interim_process_func = True    
 
     # -----------------------------------------------------------------------------------
+
+    def drawFirstRectangle (self, image, rectList):
+        """
+            Draws a rectangle on the image from the first rect tuple in the list
+        """   
+        rect = rectList[0]
+        start = (rect[0], rect[1])
+        finish = (rect[2], rect[3])
+        return cv2.rectangle(image, start, finish, (0, 255, 0), 2)
+    
+    # ------------------------------------------------------------------------------------
 
     def getSelection (self, event, x, y, flags, param):
         """
@@ -322,16 +343,22 @@ class SelectionVideoShow (VideoShow):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.mouse_points = [(x, y)]
         
-        # Store the new rectangle and write it to the window
-        elif event == cv2.EVENT_LBUTTONUP:
+        # If it's a button up event and the mouse was moved between button down and button up,
+        # store the new rectangle and write it to the window
+        elif event == cv2.EVENT_LBUTTONUP and x != self.mouse_points[0][0] and y != self.mouse_points[0][1]:
             
             # Append the final point to the rect
             self.mouse_points.append((x, y))
             
             # Make a copy of the image, draw the new rect and store the image and rectangle coords
             new_image = image.copy()
-            cv2.rectangle(new_image, self.mouse_points[0], self.mouse_points[1], (0, 255, 0), 2)
-            self.image_history.append((new_image, (self.mouse_points[0],self.mouse_points[1])))
+            rect = (self.mouse_points[0][0], self.mouse_points[0][1], self.mouse_points[1][0], self.mouse_points[1][1])
+            
+            # self.process_func is either the local drawRectagle or user supplied function
+            new_image = self.interim_process_func(new_image, [rect])
+
+            # Store the image and rectangle coord in the history list
+            self.image_history.append((new_image, rect))
             self.current_idx += 1
             cv2.imshow(self.window_name, new_image)
 
@@ -343,11 +370,13 @@ class SelectionVideoShow (VideoShow):
 
     # -----------------------------------------------------------------------------------------
     
-    def show (self, _image):
+    def show (self, _image, processFunc: Callable = None):
         """
             Override the show() method of the base class
         """
         
+        should_cancel = False
+
         # Store the given image into our history list
         self.image_history.append((_image, None))
 
@@ -358,19 +387,51 @@ class SelectionVideoShow (VideoShow):
             cv2.imshow(self.window_name, image)
 
             keypress = cv2.waitKey(0)
+    
+            if keypress == ord(VideoShow.DONE):
+                self.should_run = False
+      
             # if escape key is hit, delete the latest historical image and coords
             if keypress == VideoShow.ESCAPE:
                 if len(self.image_history) > 1:                
                     self.image_history.pop(len(self.image_history) -1) 
                     self.current_idx -= 1
-            else:
-                self.should_run = False
 
-        # We're exiting, so get the list of rectangles and close the windows
-        rects = []
-        for i in range(1, len(self.image_history)):
-            rects.append(self.image_history[i][1])
+            elif keypress == ord(VideoShow.PAUSE):
+                if not processFunc:
+                    self.should_run = False
+            
+            elif keypress == ord(VideoShow.CANCEL):
+                logger.warning('Canceling changes')
+                self.should_run = False
+                should_cancel = True
+
+        # We're exiting, first populate the return tuple with the original image
+        # and empty list of rectangles
+        ret = [self.image_history[0][0], []]
+
+        # If the user didn't cancel, populate the return tuple wit
+        if not should_cancel:
+
+            # Write out the rectangles to the return tuple
+            for i in range(1, len(self.image_history)):
+                ret[1].append(self.image_history[i][1])
+
+            # if interim processing is enabled, return the processed frame (last one)
+            if self.using_external_interim_process_func:
+                ret[0] = self.image_history[self.current_idx]
+            
+            # if post processing, process the original frame with the rects
+            # and then show it
+            elif processFunc:
+                ret[0] = processFunc(ret[0], ret[1])
+                cv2.imshow(self.window_name, ret[0])
+
+                # if the user presses cancel after viewing finished image
+                if cv2.waitKey(0) == ord(VideoShow.CANCEL):
+                    logger.warning('Canceling changes')
+                    ret = [self.image_history[0][0], []] 
 
         cv2.destroyWindow(self.window_name)
-        return rects
+        return ret
        

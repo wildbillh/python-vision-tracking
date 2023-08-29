@@ -1,8 +1,10 @@
 
-import ast, cv2, numpy as np
+import ast, cv2, logging, numpy as np
 from jproperties import Properties
 from typing import Dict, Tuple
 from app.dependencies import constants
+
+logger = logging.getLogger()
 
 USE_CUDA = False
 
@@ -97,33 +99,55 @@ def mergeWithDefault (source: dict, default: dict) -> dict:
         if key in new:
             new[key] = source[key]
         else:
-            print(f'Property {key} not found in defaults. Ignoring')
+            logger.warning(f'Property {key} not found in defaults. Ignoring')
 
     return new
 
 # --------------------------------------------------------------------
 
-def removeROI (frame: np.ndarray, rect: Tuple[int,int,int,int], sourceDirection: str ='LEFT') -> np.ndarray:
-	"""
+def removeROIs (frame: np.ndarray, rectList: list[Tuple[int,int,int,int]], sourceDirection: str ='LEFT') -> np.ndarray:
+    """
 		Given rectangle dimensions of a frame selection, replace the roi with an
 		equivalent copy in the given source direction
-	"""
-	x1, y1, x2, y2 = rect
+    """
 
-	# Get width and height of rectangle
-	width = x2-x1
-	height = y2 - y1
+    # Get a copy of the frame
+    frame_copy = frame.copy()
+    frame_h, frame_w, frame_color = frame_copy.shape
 
-	# Get a copy of the frame
-	frame_copy = frame.copy()
+    for rect in rectList:
+        x1, y1, x2, y2 = rect
 
-	if sourceDirection == 'LEFT':	
-		frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, (x1 - width):x1, 0:3]
-	elif sourceDirection == 'RIGHT':
-		frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, x2:(x2 + width), 0:3]	
-	elif sourceDirection == 'TOP':
-		frame_copy[y1:y2, x1:x2, 0:3] = frame[(y1 - height):y1, x1:x2, 0:3]	
-	else: # BOTTOM
-		frame_copy[y1:y2, x1:x2, 0:3] = frame[y2:(y2 + height), x1:x2, 0:3]	
+        # Get width and height of rectangle
+        width = x2-x1
+        height = y2 - y1
 
-	return frame_copy
+        if sourceDirection == 'LEFT':
+            if x1 < width:
+                logger.warning("Unable to perform left-wise ROI remove")
+                continue
+            else:
+                frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, (x1 - width):x1, 0:3]
+
+        elif sourceDirection == 'RIGHT':
+            if x2 + width > frame_w:
+                logger.warning("Unable to perform right-wise ROI remove")
+                continue
+            else:
+                frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, x2:(x2 + width), 0:3]
+
+        elif sourceDirection == 'TOP':
+            if y1 < height:
+                logger.warning("Unable to perform top-wise ROI remove")  
+                continue
+            else: 
+                frame_copy[y1:y2, x1:x2, 0:3] = frame[(y1 - height):y1, x1:x2, 0:3]
+
+        else: # BOTTOM
+            if y2 + height > frame_h:
+                logger.warning("Unable to perform bottom-wise ROI remove")
+                continue
+            else: 
+                frame_copy[y1:y2, x1:x2, 0:3] = frame[y2:(y2 + height), x1:x2, 0:3]
+
+    return frame_copy
