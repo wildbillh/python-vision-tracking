@@ -1,4 +1,4 @@
-import cv2, logging, time
+import cv2, logging, numpy as np, time
 from threading import Thread
 from queue import Queue
 from typing import Tuple, Union, Callable
@@ -312,12 +312,18 @@ class SelectionVideoShow (VideoShow):
         self.should_run = True
         self.interim_process_func = self.drawFirstRectangle
         self.using_external_interim_process_func = False
+        self.should_quit = False
         
         # If an external interm process function is supplied, use it instead of drawFirstRectangle function
         if interimProcessFunc:
             self.interim_process_func = interimProcessFunc
             self.using_external_interim_process_func = True    
 
+    
+    def shouldQuit(self):
+        return self.should_quit
+    
+    
     # -----------------------------------------------------------------------------------
 
     def drawFirstRectangle (self, image, rectList):
@@ -370,12 +376,18 @@ class SelectionVideoShow (VideoShow):
 
     # -----------------------------------------------------------------------------------------
     
-    def show (self, _image, processFunc: Callable = None):
+    def show (self, _image, processFunc: Callable = None) -> Tuple[np.ndarray, list[Tuple[int, int, int, int]]]:
         """
             Override the show() method of the base class
+            Get selections in the target image. If no selections or the user cancels,
+            the 2nd element of the returned tuple is an empty list
         """
         
         should_cancel = False
+        self.should_quit = False
+        self.should_run = True
+        self.image_history = []
+        self.current_idx = 0
 
         # Store the given image into our history list
         self.image_history.append((_image, None))
@@ -397,6 +409,10 @@ class SelectionVideoShow (VideoShow):
                     self.image_history.pop(len(self.image_history) -1) 
                     self.current_idx -= 1
 
+            elif keypress == ord(VideoShow.QUIT):
+                self.should_run = False
+                self.should_quit = True
+            
             elif keypress == ord(VideoShow.PAUSE):
                 if not processFunc:
                     self.should_run = False
@@ -408,30 +424,34 @@ class SelectionVideoShow (VideoShow):
 
         # We're exiting, first populate the return tuple with the original image
         # and empty list of rectangles
-        ret = [self.image_history[0][0], []]
+        ret_img = self.image_history[0][0]
+        ret_rects = []
+    
 
         # If the user didn't cancel, populate the return tuple wit
-        if not should_cancel:
+        if not should_cancel and not self.should_quit:
 
             # Write out the rectangles to the return tuple
             for i in range(1, len(self.image_history)):
-                ret[1].append(self.image_history[i][1])
+                ret_rects.append(self.image_history[i][1])
 
             # if interim processing is enabled, return the processed frame (last one)
             if self.using_external_interim_process_func:
-                ret[0] = self.image_history[self.current_idx]
+                ret_img = self.image_history[self.current_idx][0]
+                
             
             # if post processing, process the original frame with the rects
             # and then show it
             elif processFunc:
-                ret[0] = processFunc(ret[0], ret[1])
-                cv2.imshow(self.window_name, ret[0])
+                ret_img = processFunc(self.image_history[0][0], ret_rects)
+                cv2.imshow(self.window_name, ret_img)
 
                 # if the user presses cancel after viewing finished image
                 if cv2.waitKey(0) == ord(VideoShow.CANCEL):
                     logger.warning('Canceling changes')
-                    ret = [self.image_history[0][0], []] 
+                    ret_img = self.image_history[0][0]
+                    ret_rects = [] 
 
-        cv2.destroyWindow(self.window_name)
-        return ret
+        
+        return (ret_img, ret_rects)
        
