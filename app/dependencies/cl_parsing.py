@@ -41,7 +41,7 @@ def parse_args(args: List[str], systemArgs: List[str]) -> dict:
         f'--{constants.CL_CLASSIFIER_FILE}',
         dest =constants.CL_CLASSIFIER_FILE,
         help = 'Classifier file used for Cascade',
-        default = f'{module}/{constants.CL_CLASSIFIER_FILE_DEFAULT}',
+        default = f'{constants.CL_CLASSIFIER_FILE_DEFAULT}',
         type = str
     )
 
