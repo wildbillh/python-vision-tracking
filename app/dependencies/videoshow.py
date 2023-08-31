@@ -297,7 +297,9 @@ class SelectionVideoShow (VideoShow):
     """
         Class for selecting one or more rectangles of an image
     """
-        
+    RECT_COLOR = (0, 255, 0)
+    RECT_LINE_WIDTH = 1    
+
     def __init__ (self, props: dict = {}, interimProcessFunc: Callable = None):
 
         super().__init__(props)
@@ -319,7 +321,11 @@ class SelectionVideoShow (VideoShow):
             self.interim_process_func = interimProcessFunc
             self.using_external_interim_process_func = True    
 
-    
+
+        print (f'Interim Processing: {self.using_external_interim_process_func}')
+        print ('Select rectangle[s]. Press "d" when complete. ESC removes last rectangle. "q" to quit', flush=True)
+    # ----------------------------------------------------------------------------------
+
     def shouldQuit(self):
         return self.should_quit
     
@@ -333,7 +339,8 @@ class SelectionVideoShow (VideoShow):
         rect = rectList[0]
         start = (rect[0], rect[1])
         finish = (rect[2], rect[3])
-        return cv2.rectangle(image, start, finish, (0, 255, 0), 2)
+        return cv2.rectangle(image, start, finish, SelectionVideoShow.RECT_COLOR,
+                              SelectionVideoShow.RECT_LINE_WIDTH)
     
     # ------------------------------------------------------------------------------------
 
@@ -371,7 +378,8 @@ class SelectionVideoShow (VideoShow):
         # draw the interim rectangle
         elif event == cv2.EVENT_MOUSEMOVE and flags == cv2.EVENT_FLAG_LBUTTON:
             clone = image.copy()
-            cv2.rectangle(clone, self.mouse_points[0], (x, y), (0, 255, 0), 2)
+            cv2.rectangle(clone, self.mouse_points[0], (x, y), SelectionVideoShow.RECT_COLOR,
+                              SelectionVideoShow.RECT_LINE_WIDTH)
             cv2.imshow(self.window_name, clone)
 
     # -----------------------------------------------------------------------------------------
