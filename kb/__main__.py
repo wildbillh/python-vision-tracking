@@ -37,6 +37,7 @@ class Main:
 
         # Parse the user cla and the system cla. From the system cla we get the module name
         args = parse_args(sys.argv[1:], sys.orig_argv)
+        print(args, flush=True)
 
         # get the properties from the file
         properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])

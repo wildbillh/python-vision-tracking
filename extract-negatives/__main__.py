@@ -25,7 +25,7 @@ class Main:
 
         # Get the source
         fcm = FileCaptureManager()
-        fcm.open('clips/kb/fr-trans2.mp4')
+        fcm.open('clips/kb/good-jump.mp4')
 
         # Get the display 
         props = {"windowName": "extract-negatives"}
@@ -45,11 +45,11 @@ class Main:
             
             if selections:
                 # capture the modified frame
-                filename = f'{self.target_clip_folder}/fr_trans2-{frame_props["frame"]}.jpg'
+                filename = f'{self.target_clip_folder}/good-jump-{frame_props["frame"]}.jpg'
                 print(f'Writing frame: {filename}')
                 
                 print(processed_frame.shape, selections, flush=True)
-                cv2.imwrite(filename, processed_frame) 
+                print(cv2.imwrite(filename, processed_frame), flush=True) 
             
             should_run, frame, frame_props = fcm.read()
             
