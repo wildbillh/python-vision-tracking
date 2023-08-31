@@ -227,3 +227,36 @@ def generateNegFile(sourceDirs: list[str], targetFile: str):
 
     logger.info(f'Wrote {count} files to {targetFile}')
     return count
+
+# ----------------------------------------------------------------------------------------
+
+def doRectanglesOverlap(rect1: Tuple[int, int, int, int], rect2: Tuple[int, int, int, int]):
+    """
+        When given 2 rectangles in the format (x1, y1, w, h), deterimine if the 2 rectangles overlap 
+    """
+
+    # convert into x and y coords
+    r1x1 = rect1[0]
+    r1y1 = rect1[1]
+    r1x2 = r1x1 + rect1[2]
+    r1y2 = r1y1 + rect1[3]
+
+    r2x1 = rect2[0]
+    r2y1 = rect2[1]
+    r2x2 = r2x1 + rect2[2]
+    r2y2 = r2y1 + rect2[3]
+   
+    # If one of the rectangles is to the the left of the other
+    if r1x1 > r2x2 or r2x1 > r1x2:
+        return False
+ 
+    #If one rectangle is above other
+    if r1y1 > r2y2 or r2y1 > r1y2:
+        return False
+    
+    # if either rectangle has no area return False
+    if r1x1 == r1x2 or r1y1 == r1y2 or r2x1 == r2x2 or r2y1 == r2y2:
+        return False
+ 
+    return True
+

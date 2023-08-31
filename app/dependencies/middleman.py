@@ -1,4 +1,4 @@
-import logging, time
+import cv2, logging, time
 from queue import Queue
 from app.dependencies.fifothreadpool import FIFOThreadPool
 
@@ -9,7 +9,8 @@ class MiddleMan:
         Reads an input queue, does works, writes the frame to an ouput queue
     """
 
-    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, outputProps: dict, processProps: dict):
+    def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
+                 outputProps: dict, processProps: dict, videoSaveProps: dict):
         """
             Verify the needed properties where passed and set the instance vars
         """
@@ -48,7 +49,8 @@ class MiddleMan:
         self.process_dims = processProps["processDims"]
         # Dimensions of final Image
         self.finish_dims = processProps["finishDims"]
-        
+
+        self.video_save_props = videoSaveProps
         
         self.should_run = True
         # Time to wait for new resources
@@ -179,6 +181,14 @@ class MiddleMan:
         #thread_pool = FIFOThreadPool(self.process, self.threads)
         self._prepare()
         exit_when_queues_empty = False
+        video_writer = None
+
+        if self.video_save_props:
+            video_writer = cv2.VideoWriter(self.video_save_props["filename"],
+                                           cv2.VideoWriter_fourcc(*'XVID'),
+                                           self.video_save_props["fps"],
+                                           self.finish_dims)
+                                           #self.video_save_props["size"])
     
         # Main loop
         while self.should_run:
@@ -195,6 +205,8 @@ class MiddleMan:
                 # If success, write the processed frame to the output queue
                 if done and processed_dict is not None:
                     self.out_q.put(processed_dict)
+                    if video_writer:
+                        video_writer.write(processed_dict["frame"])
             # if exit when empty is set, set exit bool when queues are empty
             if exit_when_queues_empty and self.in_q.empty():
                 if self.out_q.empty():
@@ -221,6 +233,9 @@ class MiddleMan:
             else:
                 time.sleep(self.loop_wait)    
 
+        if video_writer:
+            video_writer.release()
+
         self.shutdown()
         logger.info(f'from mm: {self.write_frame_number} frames, {self.write_frame_number / (time.time() - start)} fps')
 
@@ -229,11 +244,12 @@ class MiddleMan:
 class ThreadedMiddleMan (MiddleMan):
 
     def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
-                 outputProps: dict, processProps: dict):
+                 outputProps: dict, processProps: dict, videoSaveProps: dict):
         
         # Call the Base class constructor
         super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, 
-                         outputProps=outputProps, processProps=processProps)
+                         outputProps=outputProps, processProps=processProps,
+                         videoSaveProps=videoSaveProps)
         
         self.daemon = None       
 

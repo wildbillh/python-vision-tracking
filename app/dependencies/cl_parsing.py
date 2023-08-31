@@ -32,8 +32,7 @@ def parse_args(args: List[str], systemArgs: List[str]) -> dict:
     parser.add_argument (
         f'--{constants.CL_SOURCE_FILE}',
         dest = constants.CL_SOURCE_FILE,
-        help = 'File to read from',
-        default = f'{module}/{constants.CL_SOURCE_FILE_DEFAULT}',
+        help = 'Video source file',
         type = str
     )
 
@@ -41,7 +40,6 @@ def parse_args(args: List[str], systemArgs: List[str]) -> dict:
         f'--{constants.CL_CLASSIFIER_FILE}',
         dest =constants.CL_CLASSIFIER_FILE,
         help = 'Classifier file used for Cascade',
-        default = f'{constants.CL_CLASSIFIER_FILE_DEFAULT}',
         type = str
     )
 

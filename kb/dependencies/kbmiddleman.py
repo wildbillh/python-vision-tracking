@@ -1,17 +1,19 @@
 
 import cv2, numpy as np
 from queue import Queue
+from app.dependencies.utils import doRectanglesOverlap
 from app.dependencies.middleman import ThreadedMiddleMan
 
 
 class KBMiddleMan (ThreadedMiddleMan):
 
     def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
-                 outputProps: dict, processProps: dict):
+                 outputProps: dict, processProps: dict, videoSaveProps):
         
         # Call the Base class constructor
         super().__init__(inputQueue=inputQueue, outputQueue=outputQueue, inputProps=inputProps, 
-                         outputProps=outputProps, processProps=processProps)
+                         outputProps=outputProps, processProps=processProps,
+                         videoSaveProps=videoSaveProps)
         
         # Get the size our processing frame and output frame
         process_dim_size = self.process_dims if self.process_dims is not None else self.frame_dims
@@ -62,10 +64,17 @@ class KBMiddleMan (ThreadedMiddleMan):
         if isinstance(levels, np.ndarray):
             # Get the index of the level with the highest value
             max_index = levels.argmax()
+            # Get the rectangle with the highest level value
+            best_rect = objects[max_index]
+
             object = None
             # For each roi, do something
             for i in range(levels.size):
-                object = objects[i]   
+                object = objects[i]  
+
+                # If the current rect is not the best, but overlaps the best, ignore it
+                if i != max_index and doRectanglesOverlap(best_rect, object):
+                    continue 
     
                 # If the finished frame size is different from the process frame size, scale objects
                 if self.process_to_final_conversion is not None and self.process_to_final_conversion != 1.0:

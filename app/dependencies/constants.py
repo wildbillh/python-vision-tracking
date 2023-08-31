@@ -4,9 +4,7 @@
 CL_PROPERTY_FILE='properties'
 CL_PROPERTY_FILE_DEFAULT = 'app.properties'
 CL_SOURCE_FILE='sourceFile'
-CL_SOURCE_FILE_DEFAULT = 'clips/fr-trans2.mp4'
-CL_CLASSIFIER_FILE='classifier'
-CL_CLASSIFIER_FILE_DEFAULT = 'cascade/kb/latest-cascade.xml'
+CL_CLASSIFIER_FILE='classifierFile'
 CL_SKIP_FRAMES = 'skipFrames'
 CL_SKIP_FRAMES_DEFAULT = 300
 CL_SHOW_TIME = 'showTime'
@@ -31,5 +29,7 @@ REQUIRED_PROPERTIES = {
     QUEUE_SIZE: int,
     SKIP_FRAME_SIZE: int,
     CLASSIFIER_PROPS: dict,
-    VIDEO_SHOW_PROPS: dict
+    VIDEO_SHOW_PROPS: dict,
+    CL_CLASSIFIER_FILE: str, 
+    CL_SOURCE_FILE: str
 }

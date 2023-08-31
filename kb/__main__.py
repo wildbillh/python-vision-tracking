@@ -37,7 +37,6 @@ class Main:
 
         # Parse the user cla and the system cla. From the system cla we get the module name
         args = parse_args(sys.argv[1:], sys.orig_argv)
-        print(args, flush=True)
 
         # get the properties from the file
         properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])
@@ -49,9 +48,12 @@ class Main:
         start_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
         finish_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
 
+        # If the source filename is given in CLA use it, otherwise use value from properties
+        source_file = args[constants.CL_SOURCE_FILE] if args[constants.CL_SOURCE_FILE] else properties[constants.CL_SOURCE_FILE]
+        
         # Get a class with a threaded read() function to read from the source
         self.capture_manager = ThreadedFileCaptureManager(queue = start_queue)
-        self.capture_manager.open(args["sourceFile"])
+        self.capture_manager.open(source_file)
 
         frame_props = self.capture_manager.get_frame_properties()
         frame_rate = frame_props["rate"]
@@ -62,8 +64,12 @@ class Main:
         self.video_show = ThreadedVideoShow (queue = finish_queue, props=props)
         self.video_show.setFrameRate(frame_rate)
 
+        # If the classifier filename is given in CLA use it, otherwise use value from properties
+        classifier_file = args[constants.CL_CLASSIFIER_FILE] if args[constants.CL_CLASSIFIER_FILE] else properties[constants.CL_CLASSIFIER_FILE]
+
+        logger.info(f'Source: {source_file}, Classifier: {classifier_file}')
         # Get a class for processing the frames
-        classifier = Classifier(args[constants.CL_CLASSIFIER_FILE], props=properties[constants.CLASSIFIER_PROPS])
+        classifier = Classifier(classifier_file, props=properties[constants.CLASSIFIER_PROPS])
 
         # Build the input and output properties for the class
         mm_input_props = {"inputDone": self.capture_manager.isDone, "terminateInput": self.capture_manager.stop, 
@@ -76,8 +82,13 @@ class Main:
         mm_process_props["processClass"] = classifier
         mm_process_props["frameDims"] = np.array([frame_props["width"], frame_props["height"]])
     
+        video_save_props = properties["videoSaveProps"] if "videoSaveProps" in properties else None
+        if video_save_props:
+            logger.info(f'Capturing video file: {video_save_props["filename"]}, fps={video_save_props["fps"]}, size={video_save_props["size"]}')
+
         self.middle_man = KBMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
-                                    outputProps = mm_output_props, processProps = mm_process_props)
+                                    outputProps = mm_output_props, processProps = mm_process_props, 
+                                    videoSaveProps=video_save_props)
     
         # Trap the signals and set up terminate() to end our loop gracefully.
         signal.signal(signal.SIGINT, self.terminate)

@@ -5,3 +5,7 @@ training/bin
 classifier-tool/clips
 classifier-tool/cascade
 selection-tool/*.jpg
+training/kb/cascade
+training/kb/clips
+training/kb/*.txt
+training/kb/*.vec
