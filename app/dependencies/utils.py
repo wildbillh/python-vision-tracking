@@ -207,9 +207,9 @@ def getScaledImagesFromVideo (filename: str, targetDir: str, targetPrefix: str, 
 
 # -------------------------------------------------------------------------------
 
-def generateNegFile(sourceDir: str, targetFile: str):
+def generateNegFile(sourceDirs: list[str], targetFile: str):
     """
-        Generates a negative file for training based on the files in the sourceDir
+        Generates a negative file for training based on the files in the sourceDirs
     """
     count = 0
     flags = 'w'
@@ -220,9 +220,10 @@ def generateNegFile(sourceDir: str, targetFile: str):
 
     with open(targetFile, flags) as f:
 
-        for filename in os.listdir(sourceDir):
-            f.write(f'{sourceDir}/{filename}\n')
-            count +=1
+        for source_dir in sourceDirs:
+            for filename in os.listdir(source_dir):
+                f.write(f'{source_dir}/{filename}\n')
+                count +=1
 
     logger.info(f'Wrote {count} files to {targetFile}')
     return count
