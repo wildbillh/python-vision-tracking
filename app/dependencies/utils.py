@@ -1,5 +1,5 @@
 
-import ast, cv2, logging, numpy as np
+import ast, cv2, logging, numpy as np, os
 from jproperties import Properties
 from typing import Dict, Tuple
 from app.dependencies import constants
@@ -115,6 +115,10 @@ def removeROIs (frame: np.ndarray, rectList: list[Tuple[int,int,int,int]], sourc
     frame_copy = frame.copy()
     frame_h, frame_w, frame_color = frame_copy.shape
 
+    if sourceDirection not in ['LEFT', 'RIGHT', 'TOP', 'BOTTOM']:
+        logger.warning ("Invalid source direction given. Assuming LEFT")
+        sourceDirection = "LEFT"
+
     for rect in rectList:
         x1, y1, x2, y2 = rect
 
@@ -124,26 +128,28 @@ def removeROIs (frame: np.ndarray, rectList: list[Tuple[int,int,int,int]], sourc
 
         if sourceDirection == 'LEFT':
             if x1 < width:
-                logger.warning("Unable to perform left-wise ROI remove")
-                continue
+                logger.warning("Unable to perform left-wise ROI remove, trying right-wise")
+                sourceDirection = "RIGHT"
             else:
                 frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, (x1 - width):x1, 0:3]
+                continue
 
-        elif sourceDirection == 'RIGHT':
+        if sourceDirection == 'RIGHT':
             if x2 + width > frame_w:
                 logger.warning("Unable to perform right-wise ROI remove")
-                continue
             else:
                 frame_copy[y1:y2, x1:x2, 0:3] = frame[y1:y2, x2:(x2 + width), 0:3]
+            continue    
 
-        elif sourceDirection == 'TOP':
+        if sourceDirection == 'TOP':
             if y1 < height:
-                logger.warning("Unable to perform top-wise ROI remove")  
-                continue
+                logger.warning("Unable to perform top-wise ROI remove, trying bottom-wise")  
+                sourceDirection = 'BOTTOM'
             else: 
                 frame_copy[y1:y2, x1:x2, 0:3] = frame[(y1 - height):y1, x1:x2, 0:3]
+                continue
 
-        else: # BOTTOM
+        if sourceDirection == 'BOTTOM': # BOTTOM
             if y2 + height > frame_h:
                 logger.warning("Unable to perform bottom-wise ROI remove")
                 continue
@@ -151,3 +157,72 @@ def removeROIs (frame: np.ndarray, rectList: list[Tuple[int,int,int,int]], sourc
                 frame_copy[y1:y2, x1:x2, 0:3] = frame[y2:(y2 + height), x1:x2, 0:3]
 
     return frame_copy
+
+# --------------------------------------------------------------------------
+
+def scaleImages (sourceDir:str, targetDir:str, size:list) -> int:
+    """
+        Take the images from the source directory, scale them and write to the target Directory
+    """
+    count = 0
+    file_list = os.listdir(sourceDir)
+    for file in file_list:
+        img = cv2.imread(f'{sourceDir}/{file}')
+        img = cv2.resize(img, size)
+
+        cv2.imwrite(f'{targetDir}/{count}.jpg', img)
+        count += 1
+
+    return count
+
+# -------------------------------------------------------------------------------
+
+def getScaledImagesFromVideo (filename: str, targetDir: str, targetPrefix: str, size:list, frameScale: int = 1):
+    """
+        Reads all of the images from a video file, scales them and write to the target dir
+        if frameScale is > 1, writes every nth frame
+    """
+    cap = cv2.VideoCapture(filename)
+    original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    print(f'Converting from {original_width}x{original_height} to {size[0]}x{size[1]}')
+
+    count = 0
+    write_count = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if count % frameScale == 0:
+            frame = cv2.resize(frame, size)
+            cv2.imwrite(f'{targetDir}/{targetPrefix}-{count}.jpg', frame)
+            write_count += 1
+        
+        count += 1
+
+    cap.release()
+    return write_count
+
+# -------------------------------------------------------------------------------
+
+def generateNegFile(sourceDir: str, targetFile: str):
+    """
+        Generates a negative file for training based on the files in the sourceDir
+    """
+    count = 0
+    flags = 'w'
+
+    if os.path.isfile(targetFile):
+        logger.info(f'File: {targetFile} exists. Appending....')
+        flags = 'a'
+
+    with open(targetFile, flags) as f:
+
+        for filename in os.listdir(sourceDir):
+            f.write(f'{sourceDir}/{filename}\n')
+            count +=1
+
+    logger.info(f'Wrote {count} files to {targetFile}')
+    return count
