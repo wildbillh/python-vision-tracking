@@ -68,6 +68,10 @@ class KBMiddleMan (ThreadedMiddleMan):
             best_rect = objects[max_index]
 
             object = None
+
+            # Keep stats on number of rectangles found by the classifier
+            self.total_hit_count += levels.size
+
             # For each roi, do something
             for i in range(levels.size):
                 object = objects[i]  
@@ -83,6 +87,9 @@ class KBMiddleMan (ThreadedMiddleMan):
                 # Write the rectangle
                 x, y, w, h = object
                 frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
+        else:
+            # Track number of frames with no hits
+            self.frames_with_no_hits_count += 1
 
         # Return the processed frame and the given frame properties
         return ({"frame": frame, "props": props}) 

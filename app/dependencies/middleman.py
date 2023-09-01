@@ -58,6 +58,10 @@ class MiddleMan:
 
         self.first_process_call = True
 
+        # Keep track of the classifier stats. Total hits and frames with no hits.
+        self.total_hit_count = 0
+        self.frames_with_no_hits_count = 0
+
     # ----------------------------------------------------------------
 
     def verifyProperties(self, inputProps: dict, outputProps: dict, processProps: dict):
@@ -238,6 +242,7 @@ class MiddleMan:
 
         self.shutdown()
         logger.info(f'from mm: {self.write_frame_number} frames, {self.write_frame_number / (time.time() - start)} fps')
+        logger.info(f'Total classifier hits: {self.total_hit_count}, Frames with no hits: {self.frames_with_no_hits_count}')
 
 # =============================================================================
 
