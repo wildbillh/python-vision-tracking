@@ -1,9 +1,10 @@
 
-import cv2, numpy as np
+import cv2, logging, numpy as np
 from queue import Queue
 from app.dependencies.utils import doRectanglesOverlap
 from app.dependencies.middleman import ThreadedMiddleMan
 
+logger = logging.getLogger()
 
 class KBMiddleMan (ThreadedMiddleMan):
 
@@ -84,9 +85,11 @@ class KBMiddleMan (ThreadedMiddleMan):
                 if self.process_to_final_conversion is not None and self.process_to_final_conversion != 1.0:
                     object = (object * self.process_to_final_conversion).astype(int)
                 
-                # Write the rectangle
-                x, y, w, h = object
-                frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
+                # Write the rectangle. If showBestRectOnly is set only show the best
+                if not self.show_best_rect_only or i == max_index:
+                    x, y, w, h = object
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
+                    logger.info(f'{props["frame"]}: {x + int(0.5 * w)}, {y + int(0.5 * h)} - {w}, {h}')
         else:
             # Track number of frames with no hits
             self.frames_with_no_hits_count += 1

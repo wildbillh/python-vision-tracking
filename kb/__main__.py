@@ -36,7 +36,8 @@ class Main:
     def run(self):
 
         # Parse the user cla and the system cla. From the system cla we get the module name
-        args = parse_args(sys.argv[1:], sys.orig_argv)
+        
+        args = parse_args(sys.argv[1:], sys.orig_argv if sys.orig_argv else ['-m', 'kb'])
 
         # get the properties from the file
         properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])
@@ -56,7 +57,7 @@ class Main:
         self.capture_manager.open(source_file)
 
         frame_props = self.capture_manager.get_frame_properties()
-        frame_rate = frame_props["rate"]
+        frame_rate = 30#frame_props["rate"]
         #frame_dims = [frame_props["height"], frame_props["width"]]
     
         # Get a class with a threaded show() function to write the output

@@ -1,7 +1,7 @@
 import cv2, logging, numpy as np, time
 from threading import Thread
 from queue import Queue
-from typing import Tuple, Union, Callable
+from typing import Tuple, Union, Callable, List
 from app.dependencies import constants
 from app.dependencies.utils import mergeWithDefault
 
@@ -384,7 +384,7 @@ class SelectionVideoShow (VideoShow):
 
     # -----------------------------------------------------------------------------------------
     
-    def show (self, _image, processFunc: Callable = None) -> Tuple[np.ndarray, list[Tuple[int, int, int, int]]]:
+    def show (self, _image, processFunc: Callable = None) -> Tuple[np.ndarray, List[Tuple[int, int, int, int]]]:
         """
             Override the show() method of the base class
             Get selections in the target image. If no selections or the user cancels,

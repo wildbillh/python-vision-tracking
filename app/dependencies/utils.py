@@ -1,7 +1,7 @@
 
 import ast, cv2, logging, numpy as np, os
 from jproperties import Properties
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from app.dependencies import constants
 
 logger = logging.getLogger()
@@ -105,7 +105,7 @@ def mergeWithDefault (source: dict, default: dict) -> dict:
 
 # --------------------------------------------------------------------
 
-def removeROIs (frame: np.ndarray, rectList: list[Tuple[int,int,int,int]], sourceDirection: str ='LEFT') -> np.ndarray:
+def removeROIs (frame: np.ndarray, rectList: List[Tuple[int,int,int,int]], sourceDirection: str ='LEFT') -> np.ndarray:
     """
 		Given rectangle dimensions of a frame selection, replace the roi with an
 		equivalent copy in the given source direction

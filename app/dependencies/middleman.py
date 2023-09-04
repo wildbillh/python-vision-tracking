@@ -50,6 +50,8 @@ class MiddleMan:
         # Dimensions of final Image
         self.finish_dims = processProps["finishDims"]
 
+        self.show_best_rect_only = processProps["showBestRectOnly"]
+
         self.video_save_props = videoSaveProps
         
         self.should_run = True
