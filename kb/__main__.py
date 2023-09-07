@@ -57,7 +57,7 @@ class Main:
         self.capture_manager.open(source_file)
 
         frame_props = self.capture_manager.get_frame_properties()
-        frame_rate = 30#frame_props["rate"]
+        frame_rate = frame_props["rate"]
         #frame_dims = [frame_props["height"], frame_props["width"]]
     
         # Get a class with a threaded show() function to write the output

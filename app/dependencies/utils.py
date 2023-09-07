@@ -248,15 +248,52 @@ def doRectanglesOverlap(rect1: Tuple[int, int, int, int], rect2: Tuple[int, int,
    
     # If one of the rectangles is to the the left of the other
     if r1x1 > r2x2 or r2x1 > r1x2:
-        return False
+        return False, None
  
     #If one rectangle is above other
     if r1y1 > r2y2 or r2y1 > r1y2:
-        return False
+        return False, None
     
     # if either rectangle has no area return False
     if r1x1 == r1x2 or r1y1 == r1y2 or r2x1 == r2x2 or r2y1 == r2y2:
-        return False
+        return False, None
  
-    return True
+    # Find the bigger of the two
+    if ((r1x2 - r1x1) * (r1y2 - r1y1)) > ((r2x2 - r2x1) * (r2y2 - r2y1)):
+        return (True, rect1)
+    
+    return (True, rect2)
 
+
+def transformOverlappingROIS (rects, levels, threshold: float):
+    """
+    """
+    rect_list = []
+    levels_list = []
+    combined_indexes = []
+
+    # If the level falls below the threshold, we ignore it's rect and level
+    for i in range(len(levels)):
+        if levels[i] < threshold:
+            combined_indexes.append(i)           
+
+    rect_tuple = None
+
+    for i in range (len(levels)):
+        is_overlap = False
+        for j in range (len(levels)):
+            if i == j or i in combined_indexes or j in combined_indexes:
+                continue
+            is_overlap, bigger_rect = doRectanglesOverlap(rects[i], rects[j])
+            if is_overlap:
+                rect_list.append(bigger_rect)
+                levels_list.append(levels[i] + levels[j])
+                combined_indexes.append(i)
+                combined_indexes.append(j)
+                break
+        if not is_overlap and not i in combined_indexes:
+            rect_list.append(rects[i])
+            levels_list.append(levels[i])
+
+
+    return (rect_list, levels_list)

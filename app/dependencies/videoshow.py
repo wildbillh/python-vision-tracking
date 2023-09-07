@@ -19,13 +19,14 @@ class VideoShow:
     ESCAPE = 27
     CANCEL = 'c'
     DONE = 'd'
+    NEXT = 'n'
 
 
     def __init__(self, props={}):
         
         default_props = {"clipCaptureDir": "clips/capture", "showTime": False, 
                          "windowName": "Object Detection", "showOutput": True,
-                         "timeColor": (10,255,10), "timeThickness": 2}
+                         "timeColor": (10,255,10), "timeThickness": 2, "stepFrames": False}
         
         # Merge with whatever is sent in
         self.props = mergeWithDefault(props, default_props)
@@ -38,7 +39,7 @@ class VideoShow:
         self.fps = 0
         self.delay_ms = 1000.0 / self.fps if self.fps > 0 else 0
         self.process_delay = 3
-
+        self.is_stepping = self.props["stepFrames"]
 
         # Stats
         self.first_load_time = 0
@@ -144,7 +145,11 @@ class VideoShow:
         self.last_load_time = now    
         
         # Check for a keypress
-        keypress = cv2.pollKey()
+        keypress = cv2.pollKey() if not self.is_stepping else cv2.waitKey(0)
+        if self.is_stepping:
+            if keypress != ord(VideoShow.NEXT):
+                self.is_stepping = False
+       
         
         # if no keypress return
         if keypress == -1:
@@ -155,11 +160,18 @@ class VideoShow:
         # Quit indicated. Set the stop boolean
         if keypress == ord(VideoShow.QUIT):
             return (False, None)
+        elif keypress == ord(VideoShow.NEXT):
+                self.is_stepping = True
         
         elif keypress == ord(VideoShow.PAUSE):
-            while True:
-                if cv2.waitKey(0) & 0xFF == ord(VideoShow.PAUSE):
-                    break
+            if not self.is_stepping:   
+                while True:
+                    wait_key = cv2.waitKey(0) 
+                    if wait_key == ord(VideoShow.NEXT):
+                        self.is_stepping = True
+                        break 
+                    elif wait_key == ord(VideoShow.PAUSE):
+                        break
 
         # Write the current frame as a jpg
         elif keypress == ord(VideoShow.WRITE_FILE):
@@ -175,6 +187,8 @@ class VideoShow:
         # Return the value of the key pressed of rewind or ff
         elif keypress == ord(VideoShow.REWIND) or keypress == VideoShow.FAST_FOWARD:
             return (True, chr(keypress))
+        else:
+            self.is_stepping = False
 
     # --------------------------------------------------------------------------------------------
 

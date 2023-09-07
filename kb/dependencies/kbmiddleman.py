@@ -1,8 +1,9 @@
 
 import cv2, logging, numpy as np
 from queue import Queue
-from app.dependencies.utils import doRectanglesOverlap
+from app.dependencies.utils import doRectanglesOverlap, transformOverlappingROIS
 from app.dependencies.middleman import ThreadedMiddleMan
+from app.dependencies.roitracking import ROITracking
 
 logger = logging.getLogger()
 
@@ -26,6 +27,9 @@ class KBMiddleMan (ThreadedMiddleMan):
             self.process_to_final_conversion = finish_dim_size[0] / float(process_dim_size[0])
 
 
+        self.last_histogram = None
+        self.roi_tracking = ROITracking()
+
     # --------------------------------------------------------------------------    
 
     def process (self, frameDict: dict) -> dict:
@@ -40,6 +44,7 @@ class KBMiddleMan (ThreadedMiddleMan):
         frame = frameDict["frame"]
         props = frameDict["props"]
         process_frame = None
+
 
         # Get a process frame by either resizing or copying the input frame
         if self.process_dims is not None:
@@ -58,41 +63,69 @@ class KBMiddleMan (ThreadedMiddleMan):
         objects, levels = self.process_class.process(process_frame)
           
         # The highest level rectangle will be green, all others blue
-        max_color = (0,255,0)
-        color = (255,0,0)
+        best_color = (0,255,0) #BGR
+        second_color = (255,0,0)
+        third_color = (0,255,255)
 
         # if the classifier found any roi's and levels
         if isinstance(levels, np.ndarray):
-            # Get the index of the level with the highest value
-            max_index = levels.argmax()
-            # Get the rectangle with the highest level value
-            best_rect = objects[max_index]
+            logger.info(f'frame={props["frame"]}')
+
+            rect_list, levels_list = transformOverlappingROIS(objects, levels, threshold = 0.0)
+            #logger.info(f'{objects}, {levels}')
+            #logger.info(f'{rect_list}, {levels_list}')
+
+            rect_list, levels_list = self.roi_tracking.process(processFrame=process_frame, rects=rect_list, levels=levels_list)
+            
 
             object = None
 
             # Keep stats on number of rectangles found by the classifier
             self.total_hit_count += levels.size
 
+            color = third_color
+            my_range = min(len(levels_list), 3)
+
             # For each roi, do something
-            for i in range(levels.size):
-                object = objects[i]  
+            for i in range(my_range):
+                if i == 0: color = best_color
+                elif i == 1: color = second_color
+                else: color = third_color
+
+                object = rect_list[i]  
 
                 # If the current rect is not the best, but overlaps the best, ignore it
-                if i != max_index and doRectanglesOverlap(best_rect, object):
-                    continue 
+                #if i > 0 and doRectanglesOverlap(rect_list[0], object):
+                #    continue 
     
                 # If the finished frame size is different from the process frame size, scale objects
                 if self.process_to_final_conversion is not None and self.process_to_final_conversion != 1.0:
                     object = (object * self.process_to_final_conversion).astype(int)
                 
                 # Write the rectangle. If showBestRectOnly is set only show the best
-                if not self.show_best_rect_only or i == max_index:
+                if not self.show_best_rect_only or i == 0:
                     x, y, w, h = object
-                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), max_color if i == max_index else color, 3)
-                    logger.info(f'{props["frame"]}: {x + int(0.5 * w)}, {y + int(0.5 * h)} - {w}, {h}')
+
+                    roi = process_frame[y:y+h, x:x+w]
+                    """
+                    hist = cv2.calcHist([roi], [0], None, [256], [0,256])
+                    if self.last_histogram is not None:
+                        comp = cv2.compareHist(self.last_histogram, hist, cv2.HISTCMP_CORREL)
+                        #logger.info(f'{props["frame"]}: {comp}')
+                        if comp > 0.7:
+                            color = hist_color
+                        else:
+                            color = max_color
+                    self.last_histogram = hist
+                    """
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
+                    #logger.info(f'{props["frame"]}: {x + int(0.5 * w)}, {y + int(0.5 * h)} - {w}, {h}')
+                    
+                    
         else:
             # Track number of frames with no hits
             self.frames_with_no_hits_count += 1
+           
 
         # Return the processed frame and the given frame properties
         return ({"frame": frame, "props": props}) 
