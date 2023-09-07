@@ -67,16 +67,18 @@ class KBMiddleMan (ThreadedMiddleMan):
         second_color = (255,0,0)
         third_color = (0,255,255)
 
+        best_track = 0
+
         # if the classifier found any roi's and levels
         if isinstance(levels, np.ndarray):
-            logger.info(f'frame={props["frame"]}')
+            logger.info(f'============ frame={props["frame"]} ==========')
 
             rect_list, levels_list = transformOverlappingROIS(objects, levels, threshold = 0.0)
             #logger.info(f'{objects}, {levels}')
             #logger.info(f'{rect_list}, {levels_list}')
 
-            rect_list, levels_list = self.roi_tracking.process(processFrame=process_frame, rects=rect_list, levels=levels_list)
-            
+            rect_list, levels_list, best_track = self.roi_tracking.process(processFrame=process_frame, rects=rect_list, levels=levels_list)
+            logger.info(f'rect: {rect_list}, levels: {levels_list}, best track: {best_track}')
 
             object = None
 
@@ -88,8 +90,8 @@ class KBMiddleMan (ThreadedMiddleMan):
 
             # For each roi, do something
             for i in range(my_range):
-                if i == 0: color = best_color
-                elif i == 1: color = second_color
+                if i == best_track: color = best_color
+                #elif i == 1: color = second_color
                 else: color = third_color
 
                 object = rect_list[i]  
@@ -107,19 +109,9 @@ class KBMiddleMan (ThreadedMiddleMan):
                     x, y, w, h = object
 
                     roi = process_frame[y:y+h, x:x+w]
-                    """
-                    hist = cv2.calcHist([roi], [0], None, [256], [0,256])
-                    if self.last_histogram is not None:
-                        comp = cv2.compareHist(self.last_histogram, hist, cv2.HISTCMP_CORREL)
-                        #logger.info(f'{props["frame"]}: {comp}')
-                        if comp > 0.7:
-                            color = hist_color
-                        else:
-                            color = max_color
-                    self.last_histogram = hist
-                    """
+                    
                     frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
-                    #logger.info(f'{props["frame"]}: {x + int(0.5 * w)}, {y + int(0.5 * h)} - {w}, {h}')
+                    
                     
                     
         else:

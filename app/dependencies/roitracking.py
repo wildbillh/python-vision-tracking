@@ -1,5 +1,5 @@
 
-import cv2, logging, numpy as np
+import array, cv2, logging, numpy as np
 from typing import List, Tuple, Union
 
 logger = logging.getLogger()
@@ -27,50 +27,42 @@ class ROITracking:
             best three roi's and store them in a circular buffer.
         """
 
-        # Get list sorted by best levels first
-        rect_list, level_list = self.sort(rects, levels)
-
-        object_count = len(levels)
-
+        
         # Figure out the how much data to process
-        max_index = min(self.max_tracks, object_count)
+        max_index = min(self.max_tracks, len(levels))
+
+        # Get list sorted by best levels first
+        rect_list, level_list = self.sort(rects, levels, max_index)
+
+        object_count = len(level_list)
+
         logger.info(f'process called levels: {level_list}')
 
-
         last_stored_histograms = self.getLastStoredHistograms()
-        #logger.info(f'last_stored: {last_stored_histograms}')
         incoming_histograms = self.getIncomingHistograms (processFrame, rect_list)
 
         correlation_list = self.getCorrelationList (incoming_histograms, last_stored_histograms)
+        logger.info(f'correlation list: {correlation_list}')
 
-
-        #logger.info(f'correlation: {correlation_list}')
-
+        # Get the indexes of any tracks that have no data
         empty_tracks_indexes = [i for i in range(self.max_tracks) if last_stored_histograms[i] is None]
-        mismatched_incoming_indexes = [i for i in range(object_count) if correlation_list[i] is None]
 
-        logger.info(f'empty_tracks: {empty_tracks_indexes}, mismatched: {mismatched_incoming_indexes}')
+        mismatched_incoming_indexes = [i for i in range(object_count) if correlation_list[i] == -1]
+
         track_indexes_to_write = list(range(self.max_tracks))
-        logger.info(f'track_indexes_to_write: {track_indexes_to_write}')
-
-        logger.info(f'correlation_list: {correlation_list}')
 
         # first write the histograms that have correlations
         for i in range(object_count):
-            if correlation_list[i] is not None:
-                logger.info(f'adding incoming: {i} to track {correlation_list[i]}')
-                self._addTrack(incoming_histograms[i], level_list[i], correlation_list[i])  
-                logger.info(f'track_indexes_to_write: {track_indexes_to_write}')
+            if correlation_list[i] != -1:               
+                self._addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
                 track_indexes_to_write.remove(correlation_list[i])    
-                logger.info(f'track_indexes_to_write: {track_indexes_to_write}')
+                
 
         # if we have uncorrelated objects and empty tracks, write them
         for mismatch in mismatched_incoming_indexes:
             if len(empty_tracks_indexes) > 0:
-                logger.info(f'incoming no match: {mismatch} to empty track: {empty_tracks_indexes[0]}')
                 self._addTrack(incoming_histograms[mismatch], level_list[mismatch], empty_tracks_indexes[0]) 
-                track_indexes_to_write.remove(empty_tracks_indexes[0]) 
-                logger.info(f'Write incoming: {mismatch} to track: {empty_tracks_indexes[0]}')
+                track_indexes_to_write.remove(empty_tracks_indexes[0])              
                 del(empty_tracks_indexes[0])
             else:
                 break
@@ -78,13 +70,21 @@ class ROITracking:
         # Now write empty hist into any tracks that haven't been written
         for ind in empty_tracks_indexes:
             self._addTrack (None, 0.0, ind)
-            logger.info(f'Write empty hist to {ind}')   
 
-        return (rect_list, level_list)
+        track_level_sums = [np.sum(self.levels_track_list[i]) for i in range(self.max_tracks)]
+        logger.info(f'level_sums: {track_level_sums}')
+
+        calculated_best = np.argmax(track_level_sums)
+        if self.best_track_index != calculated_best:
+            logger.info(f'Best track is now {calculated_best}')
+            self.best_track_index = calculated_best
+          
+
+        return (rect_list, level_list, self.best_track_index)
         
     # -------------------------------------------------------------------
     
-    def sort (self, rects: List[Tuple[int,int,int,int]], levels: List[float]) -> Tuple[List, List]:
+    def sort (self, rects: List[Tuple[int,int,int,int]], levels: List[float], maxIndex: int) -> Tuple[List, List]:
         """
             Sort both the rects and levels based on the levels values
         """  
@@ -98,7 +98,7 @@ class ROITracking:
             ret_rects.append(rects[sorted_indexes[i]])
             ret_levels.append(levels[sorted_indexes[i]])
         
-        return (ret_rects, ret_levels) 
+        return (np.array(ret_rects)[0:maxIndex], np.array(ret_levels)[0:maxIndex]) 
     
     # -------------------------------------------------------------------
     
@@ -115,6 +115,7 @@ class ROITracking:
             self.track_list[index, self.history_count-1] = hist
             self.levels_track_list[index, self.history_count-1] = level
 
+        # Roll the entries we just added at the bottom, to the top
         self.track_list[index] = np.roll(self.track_list[index], shift=1, axis=0)
         self.levels_track_list[index] = np.roll(self.levels_track_list[index], shift=1, axis=0)
 
@@ -123,10 +124,10 @@ class ROITracking:
     def getIncomingHistograms (self, frame, rectList):
         """
             Calculates the histograms for the incoming roi's
-            Returns a list of size 1 - maxTracks
+            Returns a list of size maxTracks
         """
         ret_hist_list = []
-        max_index = min(3, len(rectList))
+        max_index = min(self.max_tracks, len(rectList))
         for i in range(max_index):
             x, y, w, h = rectList[i]
             roi = frame[y:y+h, x:x+w]
@@ -139,7 +140,7 @@ class ROITracking:
     def getLastStoredHistograms (self) -> List[Union[np.ndarray, None]]:
         """
             Query the histogram data and get the latest histogram for each track
-            If no histograms returns None for that entry in the list
+            If no histograms, returns None for that entry in the list
         """
         ret_list = []
         for i in range(self.max_tracks):
@@ -152,13 +153,16 @@ class ROITracking:
 
         return ret_list
     
-    def getCorrelationList (self, incomingHistograms: List[np.ndarray], lastStoredHistograms: List[Union[np.ndarray, None]]):
+    # ------------------------------------------------------------------------------------------
+    
+    def getCorrelationList (self, incomingHistograms: List[np.ndarray], lastStoredHistograms: List[np.ndarray]):
         """
             Returns a list the same size as the incoming rects (max = 3). Each element is either the index of the tracking
-            that corresponds or none 
+            that corresponds or -1
         """
         incoming_len = len(incomingHistograms)
         stored_len = len(lastStoredHistograms)
+        
         # Build a 2 dimensional array (incoming X tracks) filled with 0.0
         matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
         
@@ -168,14 +172,21 @@ class ROITracking:
                 if lastStoredHistograms[j] is not None:
                     matrix[i,j] = cv2.compareHist(incomingHistograms[i], lastStoredHistograms[j], cv2.HISTCMP_CORREL)
 
-
-        ret_list = []
-        logger.info(matrix)
+        # Build a single dimension array the size of the incoming histograms to store the index data. 
+        # Initialize each value to -1 (unset)
+        ret_list = np.full((incoming_len), -1, dtype=np.intp)
         
+        # For the number of incoming iterations:
+        # 1. Get the max correletion as row,col
+        # 2. if above the minimum correlation threshold, set the value at row to col
+        # 3. Overwrite the column in the source matrix with -1.0, so it can't be used again 
         for i in range(incoming_len):
-            max_index = np.argmax(matrix[i])
-            ret_list.append(max_index if matrix[i,max_index] > 0.5 else None)
-            np.delete(matrix, obj=max_index, axis=1)
+            row, col = np.unravel_index(np.argmax(matrix), (incoming_len,stored_len))
+            if matrix[row, col] > self.min_correlation_limit:     
+                ret_list[row] = col 
+            
+            matrix[:, col] = np.full((incoming_len), -1)
+           
 
         return ret_list
 
