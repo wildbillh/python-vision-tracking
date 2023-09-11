@@ -6,13 +6,25 @@ class USBServo:
     Simple class that encapsolates use of the compact protocal to control servo's serially
     """
 
-    def __init__(self):
+    def __init__(self, props = {}):
         """
         """
         self.com_port = None
-        
+        self.max_servos = 6
         self.rate = 115200
         self.ssc = None
+        
+        # Setup the default properties for each servo
+        self.props = {}
+        for i in range(self.max_servos):
+            self.props[i] = {"home": 1716, "min": 992, "max": 2000, "speed": 0, "acceleration": 0}
+
+        # If properties are supplied, merge with the defaults
+        if props:
+            self.setProperties(props)
+
+        print (self.props, flush=True)    
+
 
     # -------------------------------------------------------------------------
 
@@ -21,6 +33,20 @@ class USBServo:
         """
         self.close()
     
+    # -------------------------------------------------------------------------
+
+    def setProperties (self, props):
+        """
+            Merge the current props with the new ones given
+        """
+
+        for i in range (self.max_servos):
+            if i in props:
+                prop = props[i]
+                for key in prop.keys():
+                    self.props[i][key] = prop[key]
+
+
     # -------------------------------------------------------------------------
     
     def open (self, comPort, rate=115200):
@@ -96,7 +122,7 @@ class USBServo:
         return (receive_message[0] | (receive_message[1] << 8)) // 4
 
 """
-usb = USBServo()
+usb = USBServo({5: {"speed": 20, "acceleration": 50}})
 usb.open('COM4')
 
 
@@ -115,6 +141,6 @@ time.sleep(1.5)
 
 
 usb.close()
-
 """
+
 
