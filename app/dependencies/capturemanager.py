@@ -30,7 +30,12 @@ class CaptureManager():
             Open the capture source. Raises an exception on failure
         """
 
-        self.cap = cv2.VideoCapture(source)
+        
+        if isinstance(source, int):
+            self.cap = cv2.VideoCapture(source, cv2.CAP_DSHOW)
+        else:
+            self.cap = cv2.VideoCapture(source)
+
         if not self.cap.isOpened():
             raise Exception(f'Could not open Source from {source}')
         
