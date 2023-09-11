@@ -1,6 +1,4 @@
-import serial
-
-
+import serial, time
 
 
 class USBServo:
@@ -42,8 +40,33 @@ class USBServo:
             self.ssc = None
 
     # ---------------------------------------------------------------------------------------
+
+    def setAcceleration(self, channel: int, val: int):
+        """
+            Set the acceleration to get smooth transitions
+        """
+
+        message = bytearray([0x89, channel, val & 0x7F, (val >> 7) & 0x7F])
+        bytes_written = self.ssc.write(message)
+        if bytes_written != len(message):
+            raise Exception (f"Expected {len(message)} bytes to be sent for setAcceleration command")
+
+    
+    # ---------------------------------------------------------------------------------------
+
+    def setSpeed(self, channel: int, val: int):
+        """
+            Set the acceleration to get smooth transitions
+        """
+
+        message = bytearray([0x87, channel, val & 0x7F, (val >> 7) & 0x7F])
+        bytes_written = self.ssc.write(message)
+        if bytes_written != len(message):
+            raise Exception (f"Expected {len(message)} bytes to be sent for setAcceleration command")
+
+    # ---------------------------------------------------------------------------------------
         
-    def setServoPosition (self, channel, microSeconds):
+    def setPosition (self, channel: int, microSeconds: int):
         """
             Sets the microseconds for the designated channel 
         """
@@ -57,7 +80,7 @@ class USBServo:
     # -------------------------------------------------------------------------------    
 
 
-    def getServoPosition(self, channel):
+    def getPosition(self, channel: int):
         """
             Get the designated channel's position in microseconds
         """
@@ -78,13 +101,20 @@ usb.open('COM4')
 
 
 
-pos = usb.getServoPosition(5)
-print(f'pos = {pos}')
-usb.setServoPosition(5, 0)
-pos = usb.getServoPosition(5)
-print(f'pos = {pos}', flush=True)
+#pos = usb.getPosition(5)
+#print(f'pos = {pos}')
+usb.setSpeed(5, 100)
+usb.setPosition(5, 1300)
+time.sleep(0.5)
+pos = usb.getPosition(5)
+usb.setAcceleration(5, 10)
+usb.setPosition(5, 1800)
+time.sleep(1.5)
+#print(f'pos = {pos}', flush=True)
+#usb.setPosition(5, 0)
 
 
 usb.close()
 
 """
+
