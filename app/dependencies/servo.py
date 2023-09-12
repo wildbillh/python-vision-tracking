@@ -7,37 +7,26 @@ class USBServo:
     Simple class that encapsolates use of the compact protocal to control servo's serially
     """
 
+    DEFAULT_CONTROLLER_PROPS = {"min": 992, "max": 2000}
+    DEFAULT_SERVO_PROPS = {"home": 1560, "speed": 200, "acceleration": 0}
+    MAX_SERVOS = 6
+    RATE = 115200
+
     def __init__(self, controllerProps = {}, servoProps = {}, actives = [i for i in range(6)]):
         """
         """
-        self.com_port = None
-        self.max_servos = 6
-        self.rate = 115200
-        self.ssc = None
+        
+        self.port = None
         self.actives = actives
-        self.servo_props = {}
+    
+        # Store the controller properties
+        self.controller_props = self.setControllerProperties(controllerProps)
+       
+        # If properties are supplied, merge with the defaults 
+        self.servo_props = self.setServoProperties(servoProps)  
 
-        self.controller_props = {"min": 992, "max": 2000}
-        for key in controllerProps.keys():
-            if key in self.controller_props:
-                self.controller_props["key"] = controllerProps[key]
-            else:
-                logger.warning(f'Unexpected controller property: {key}')
-
-        
-        # Setup the default properties for each servo
-        
-        self.servo_attrs = {}
-        for i in range(self.max_servos):
-            self.servo_props[i] = {"home": 1560, "speed": 200, "acceleration": 0}
-            self.servo_attrs[i] = {"disabled": True, "pos": self.servo_props[i]["home"]}
-
-        # If properties are supplied, merge with the defaults
-        if servoProps:
-            self.setServoProperties(servoProps)  
-   
-                
-        self.servo_attrs = {}
+        # Setup the servo attributes
+        self.servo_attrs = self.setServoAttrs()
 
 
     # -------------------------------------------------------------------------
@@ -45,8 +34,7 @@ class USBServo:
     def __del__(self):
         """
         """
-        self.close()
-    
+        self.close() 
     
     # -------------------------------------------------------------------------
 
@@ -54,28 +42,60 @@ class USBServo:
         """
             Writes the bytearray command structure and checks for bytes written. Flushes the port
         """
-        bytes_written = self.ssc.write(message)
-        self.ssc.flush()
+        bytes_written = self.port.write(message)
+        self.port.flush()
         if bytes_written != len(message):
             raise Exception (f"Expected {len(message)} bytes to be sent for {commandName} command")
 
+
+    # -----------------------------------------------------------------------------
+
+    def setServoAttrs (self):
+        """
+            Setup the servo attributes.
+            Indicates whether a servo is disabled
+        """
+        servo_attrs = {}
+        for i in range(USBServo.MAX_SERVOS):
+            servo_attrs[i] = {"disabled": True, "pos": self.servo_props[i]["home"]}   
+
+        return servo_attrs
+    
+    # ------------------------------------------------------------------------------
+    
+    def setControllerProperties (self, props):
+        """
+            Set up the controller properties.
+            Determines min and max positions
+        """
+        controller_props = USBServo.DEFAULT_CONTROLLER_PROPS.copy()
+        for key in props.keys():
+            if key in controller_props:
+                controller_props["key"] = props[key]
+            else:
+                logger.warning(f'Unexpected controller property: {key}')
+
+        return controller_props
     
     # -------------------------------------------------------------------------
 
     def setServoProperties (self, props):
         """
+            Setup the servo properties.
+            Includes speed, acceleration and home position.
             Merge the current props with the new ones given
         """
-        for i in range(self.max_servos):
-            self.servo_props[i] = {"home": 1560, "speed": 200, "acceleration": 0}
+        servo_props = {}
+        for i in range(USBServo.MAX_SERVOS):
+            servo_props[i] = USBServo.DEFAULT_SERVO_PROPS.copy()
 
-        for i in range (self.max_servos):
             if i in props:
                 prop = props[i]
                 for key in prop.keys():
-                    if key in self.servo_props[i]:
-                        self.servo_props[i][key] = prop[key]
+                    if key in servo_props[i]:
+                        servo_props[i][key] = prop[key]
 
+        return servo_props
 
     # -------------------------------------------------------------------------
     
@@ -83,30 +103,35 @@ class USBServo:
         """
             Open the serial port
         """
-        self.com_port = comPort
-        self.rate = rate
-        self.ssc = serial.Serial(comPort, rate) 
+        
+        self.port = serial.Serial(comPort, USBServo.RATE) 
+        if not self.port.is_open:
+            raise Exception (f"Could not open port {comPort}")
         
     # -------------------------------------------------------------------------
 
     def initializeActives (self, actives: list):
         """
             Sets the list of active servos and runs through a short initialization
+            of each active servo
         """
         
-        if not self.ssc.is_open:
+        if not self.port.is_open:
             raise Exception ("Initialize call on unopen serial port")
         
+        # Store the actives list
         self.actives = actives
         
+        # For each channel, enable the servo and move to the min, max and home positions
         for channel in self.actives:
+
+            speed = self.servo_props[channel]["speed"]
            
             # Set a slow speed to run through the min and max
             self.setSpeed(channel, 40)
             
-            # If the servo is asleep, wake it up
-            pos = self.getPosition(channel)
-            self.setPositionSync(channel, pos if pos >= self.controller_props["min"] and pos <= self.controller_props["max"] else self.servo_props[channel]["home"])
+            if self.servo_attrs[channel]["disabled"]:
+                self.setEnabled(channel)
             
             # Go to the min, max and home positions
             self.setPositionSync(channel, self.controller_props["min"])
@@ -114,42 +139,32 @@ class USBServo:
             self.returnToHome(channel)
 
             # Set the speed to the correct property value
-            self.setSpeed(channel, self.servo_props[channel]["speed"])
-
-            
+            self.setSpeed(channel, speed)      
     
     # --------------------------------------------------------------------------    
 
-    def close (self):
+    def close (self) -> None:
         """
             Close the port 
         """
-        if self.ssc is not None:
-            self.ssc.close()
-            self.ssc = None
-
-    # -----------------------------------------------------------------------------
-    
-    def disableServo (self, channel):
-        self.setPositionSync(channel, 0)
-    
+        if self.port is not None:
+            self.port.close()
+            self.port = None
+   
     # -------------------------------------------------------------------------------------
 
-    def returnToHome (self, channel):
+    def returnToHome (self, channel) -> int:
         """
             Return to the defined neutral position
         """
-        self.setPositionSync(channel, self.servo_props[channel]["home"])
+        pos = self.servo_props[channel]["home"]    
+        self.setPositionSync(channel, pos)
 
-
-    # -------------------------------------------------------------------------------------
-    
-    def flush (self):
-        self.ssc.flush()
+        return pos
 
     # ---------------------------------------------------------------------------------------
 
-    def setAcceleration(self, channel: int, val: int):
+    def setAcceleration(self, channel: int, val: int) -> None:
         """
             Set the acceleration to get smooth transitions
         """
@@ -157,10 +172,31 @@ class USBServo:
         message = bytearray([0x89, channel, val & 0x7F, (val >> 7) & 0x7F])
         self.writeCommand(message, "setAcceleration")
 
+    # ----------------------------------------------------------------------------------------
+
+    def setDisabled (self, channel) -> None:
+        """
+            Disable the servo and store the last position
+        """
+        pos = self.getPosition(channel)
+        self.setPosition(channel, 0)
+        self.servo_attrs[channel]["disabled"] = True
+        self.servo_attrs[channel]["pos"] = pos if pos > 0 else self.servo_props[channel]["home"]
     
     # ---------------------------------------------------------------------------------------
 
-    def setSpeed(self, channel: int, val: int):
+    def setEnabled (self, channel) -> None:
+        """
+            Enable the servo and set a position
+        """
+
+        self.setPosition (channel, self.servo_attrs[channel]["pos"] if self.servo_attrs[channel]["pos"] > 0 else self.servo_props[channel]["home"])
+        self.servo_attrs[channel]["disabled"] = False
+        self.setSpeed(channel, self.servo_props[channel]["speed"])
+
+    # ---------------------------------------------------------------------------------------
+
+    def setSpeed(self, channel: int, val: int) -> None:
         """
             Set the acceleration to get smooth transitions
         """
@@ -169,10 +205,9 @@ class USBServo:
         self.writeCommand(message, "setSpeed")
         self.servo_props[channel]["speed"] = val
 
-    
     # --------------------------------------------------------------------------------------
 
-    def setPositionSync (self, channel: int, microSeconds, timeout = 2):
+    def setPositionSync (self, channel: int, microSeconds: int, timeout:int = 2) -> None:
         """
             Sets the position but doesn't return until the position is acheived or a timeout occurs
         """
@@ -186,7 +221,7 @@ class USBServo:
     
     # ---------------------------------------------------------------------------------------
         
-    def setPosition (self, channel: int, microSeconds: int):
+    def setPosition (self, channel: int, microSeconds: int) -> None:
         """
             Sets the microseconds for the designated channel 
         """
@@ -196,20 +231,25 @@ class USBServo:
         
         self.writeCommand(message, "setPosition")
         
+        # Store the new position
+        self.servo_attrs[channel]["pos"] = microSeconds
+        
     # -------------------------------------------------------------------------------    
 
 
-    def getPosition(self, channel: int):
+    def getPosition(self, channel: int) -> int:
         """
             Get the designated channel's position in microseconds
         """
         send_message = bytearray([0x90, channel])
         self.writeCommand(send_message, "getPosition")
        
-        receive_message = self.ssc.read(2)
+        # Get the 2 byte position message
+        receive_message = self.port.read(2)
         if len(receive_message) != 2:
             raise Exception (f'Error. Expected 2 bytes in return of getServerPosition but found {len(receive_message)}')
 
+        # Decode the 2 bytes into an int
         position = (receive_message[0] | (receive_message[1] << 8)) // 4
         
         return position
@@ -218,10 +258,12 @@ class USBServo:
 usb = USBServo()
 usb.open('COM4')
 usb.initializeActives([5])
+usb.setDisabled (5)
 
 
-usb.disableServo (5)
-
+#usb.setEnabled(5)
+#usb.setPositionSync(5, 1000)
+#usb.setDisabled(5)
 usb.close()
 
 
