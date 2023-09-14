@@ -56,7 +56,7 @@ class Main:
         self.capture_manager = ThreadedFileCaptureManager(queue = start_queue)
         self.capture_manager.open(source_file)
 
-        frame_props = self.capture_manager.get_frame_properties()
+        frame_props = self.capture_manager.getFrameProperties()
         frame_rate = frame_props["rate"]
         #frame_dims = [frame_props["height"], frame_props["width"]]
     
