@@ -1,5 +1,6 @@
 import logging, numpy as np, traceback, signal, sys
 from queue import Queue
+from typing import Union, Tuple
 
 from app.dependencies.cl_parsing import parse_args
 from app.dependencies import constants
@@ -18,6 +19,14 @@ logger = logging.getLogger()
 class Main:
 
     def __init__(self):
+
+        self.args = None
+        self.properties = None
+        self.frame_props = None
+
+        self.start_queue = None
+        self.finish_queue = None
+
         self.capture_manager = None
         self.middle_man = None
         self.video_show = None
@@ -25,6 +34,9 @@ class Main:
     # ------------------------------------------------------------------
 
     def terminate (self, signum, frame):
+        """
+            Terminate gracefully on user shutdown
+        """
         
         logger.info("Received termination signal {}".format(signal.strsignal(signum)))
         logger.info ("Finishing work and attempting graceful exit")
@@ -32,69 +44,114 @@ class Main:
         if self.middle_man: 
             self.middle_man.shutdown()
 
-    # --------------------------------------------------------------------
-    def run(self):
+    # -----------------------------------------------------------------
 
-        # Parse the user cla and the system cla. From the system cla we get the module name
-        
-        args = parse_args(sys.argv[1:], sys.orig_argv if sys.orig_argv else ['-m', 'kb'])
-
-        # get the properties from the file
-        properties = utils.importProperties(filename = args[constants.CL_PROPERTY_FILE])
-
-        # Configure the logger with the level from the properties file
-        configure_logger(properties[constants.LOG_LEVEL]) 
-
-        # Create the 2 queues
-        start_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
-        finish_queue = Queue(maxsize=properties[constants.QUEUE_SIZE])
-
-        # If the source filename is given in CLA use it, otherwise use value from properties
-        source_file = args[constants.CL_SOURCE_FILE] if args[constants.CL_SOURCE_FILE] else properties[constants.CL_SOURCE_FILE]
-        
-        # Get a class with a threaded read() function to read from the source
-        self.capture_manager = ThreadedFileCaptureManager(queue = start_queue)
-        self.capture_manager.open(source_file)
-
-        frame_props = self.capture_manager.getFrameProperties()
-        frame_rate = frame_props["rate"]
-        #frame_dims = [frame_props["height"], frame_props["width"]]
-    
-        # Get a class with a threaded show() function to write the output
-        props = properties[constants.VIDEO_SHOW_PROPS]
-        self.video_show = ThreadedVideoShow (queue = finish_queue, props=props)
-        self.video_show.setFrameRate(frame_rate)
-
-        # If the classifier filename is given in CLA use it, otherwise use value from properties
-        classifier_file = args[constants.CL_CLASSIFIER_FILE] if args[constants.CL_CLASSIFIER_FILE] else properties[constants.CL_CLASSIFIER_FILE]
-
-        logger.info(f'Source: {source_file}, Classifier: {classifier_file}')
-        # Get a class for processing the frames
-        classifier = Classifier(classifier_file, props=properties[constants.CLASSIFIER_PROPS])
-
-        # Build the input and output properties for the class
-        mm_input_props = {"inputDone": self.capture_manager.isDone, "terminateInput": self.capture_manager.stop, 
-                          "warmupProps": (0.002, 20)}
-        mm_output_props = {"outputDone": self.video_show.isDone, 
-                           "outputStopWhenQEmpty": self.video_show.shouldStopOnEmptyQueue}
-    
-        # Get the process props from the properties file and add our process function
-        mm_process_props = properties[constants.PROCESSING_PROPS]
-        mm_process_props["processClass"] = classifier
-        mm_process_props["frameDims"] = np.array([frame_props["width"], frame_props["height"]])
-    
-        video_save_props = properties["videoSaveProps"] if "videoSaveProps" in properties else None
-        if video_save_props:
-            logger.info(f'Capturing video file: {video_save_props["filename"]}, fps={video_save_props["fps"]}, size={video_save_props["size"]}')
-
-        self.middle_man = KBMiddleMan(inputQueue = start_queue, outputQueue = finish_queue, inputProps = mm_input_props, 
-                                    outputProps = mm_output_props, processProps = mm_process_props, 
-                                    videoSaveProps=video_save_props)
-    
+    def trapSignals (self):
+        """
+            Trap terminate signals and shut down gracefully
+        """
         # Trap the signals and set up terminate() to end our loop gracefully.
         signal.signal(signal.SIGINT, self.terminate)
         signal.signal(signal.SIGTERM, self.terminate)
 
+    # -------------------------------------------------------------------
+    
+    def init (self):
+        """
+            Get the args and properties and queues. Configure the logger
+        """
+         # Parse the user cla and the system cla. From the system cla we get the module name   
+        self.args = parse_args(sys.argv[1:], sys.orig_argv if sys.orig_argv else ['-m', 'kb'])
+
+        # get the properties from the file
+        self.properties = utils.importProperties(filename = self.args[constants.CL_PROPERTY_FILE])
+
+         # Configure the logger with the level from the properties file
+        configure_logger(self.properties[constants.LOG_LEVEL]) 
+
+        # Create the 2 queues
+        self.start_queue = Queue(maxsize=self.properties[constants.QUEUE_SIZE])
+        self.finish_queue = Queue(maxsize=self.properties[constants.QUEUE_SIZE])
+
+    # ----------------------------------------------------------------------------------------
+
+    def getMMIOProperties (self) -> Tuple[dict, dict]:
+        """
+        """
+        # Build the input and output properties for the class
+        mm_input_props = {"inputDone": self.capture_manager.isDone, "terminateInput": self.capture_manager.stop, 
+                          "warmupProps": (0.002, 20)}
+        mm_output_props = {"outputDone": self.video_show.isDone, 
+                           "outputStopWhenQEmpty": self.video_show.shouldStopOnEmptyQueue} 
+        
+        return (mm_input_props, mm_output_props)    
+
+    # ----------------------------------------------------------------------------
+
+    def getMMProcessProperties (self, classifier: Classifier) -> dict:
+
+        """
+            Get the process props from the properties file and add our process function
+        """
+        mm_process_props = self.properties[constants.PROCESSING_PROPS]
+        mm_process_props["processClass"] = classifier
+        mm_process_props["frameDims"] = np.array([self.frame_props["width"], self.frame_props["height"]])
+    
+        return mm_process_props
+    
+    # ----------------------------------------------------------------------------
+
+    def getMMVSProperties (self) -> dict:
+        """
+        """
+        video_save_props = self.properties["videoSaveProps"] if "videoSaveProps" in self.properties else None
+        if video_save_props:
+            logger.info(f'Capturing video file: {video_save_props["filename"]}, fps={video_save_props["fps"]}, size={video_save_props["size"]}')
+
+        return video_save_props
+    
+    # --------------------------------------------------------------------
+    def run(self):
+
+        self.init()  
+
+        # If the source filename is given in CLA use it, otherwise use value from properties
+        source_file = self.args[constants.CL_SOURCE_FILE] if self.args[constants.CL_SOURCE_FILE] else self.properties[constants.CL_SOURCE_FILE]
+        
+        # Get a class with a threaded read() function to read from the source
+        self.capture_manager = ThreadedFileCaptureManager(queue = self.start_queue)
+        self.capture_manager.open(source_file)
+
+        self.frame_props = self.capture_manager.getFrameProperties()
+       
+        # Get a class with a threaded show() function to write the output
+        video_show_props = self.properties[constants.VIDEO_SHOW_PROPS]
+        self.video_show = ThreadedVideoShow (queue = self.finish_queue, props=video_show_props)
+        self.video_show.setFrameRate(self.frame_props["rate"])
+
+        # If the classifier filename is given in CLA use it, otherwise use value from properties
+        classifier_file = self.args[constants.CL_CLASSIFIER_FILE] if self.args[constants.CL_CLASSIFIER_FILE] else self.properties[constants.CL_CLASSIFIER_FILE]
+
+        logger.info(f'Source: {source_file}, Classifier: {classifier_file}')
+        # Get a class for processing the frames
+        classifier = Classifier(classifier_file, props=self.properties[constants.CLASSIFIER_PROPS])
+
+        # Build the input and output properties for the class
+        mm_input_props, mm_output_props = self.getMMIOProperties() 
+    
+        # Get the process props from the properties file and add our process function
+        mm_process_props = self.getMMProcessProperties(classifier)
+       
+        # If we're saving the video,  get the save properties
+        video_save_props = self.getMMVSProperties()
+
+        # Instanciate the MiddleMan variant with all of the properties
+        self.middle_man = KBMiddleMan(inputQueue = self.start_queue, outputQueue = self.finish_queue, inputProps = mm_input_props, 
+                                    outputProps = mm_output_props, processProps = mm_process_props, 
+                                    videoSaveProps=video_save_props)
+    
+        # Trap the signals and set up terminate() to end our loop gracefully.
+        self.trapSignals()
     
         # Start the thread that reads from the source
         self.capture_manager.read()
@@ -114,7 +171,9 @@ class Main:
         # Explicitly call the constructors so that thread.join() will be called
         del(self.video_show)
         del(self.capture_manager)
-    
+  
+ # ==================================================================================== 
+
 
 if __name__ == "__main__":
     try:
