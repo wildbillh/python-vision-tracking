@@ -49,7 +49,7 @@ class CaptureManager():
         if not self.cap.isOpened():
             raise Exception(f'Could not open Source from {source}')
         
-        if props["fps"]:
+        if "fps" in props:
             self.cap.set(cv2.CAP_PROP_FPS, float(props["fps"]))
         
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
