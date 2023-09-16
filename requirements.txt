@@ -1,5 +1,10 @@
+coverage
 numpy
 opencv-contrib-python
 jproperties
+mock
 pyserial
+pytest
+pytest-cov
+
 

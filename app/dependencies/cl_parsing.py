@@ -4,7 +4,6 @@ from typing import List
 
 
 
-
 def parse_args(args: List[str], systemArgs: List[str]) -> dict:
     
     # Parse the system command line arguments to get the module name
@@ -55,8 +54,7 @@ def parse_args(args: List[str], systemArgs: List[str]) -> dict:
         f'--{constants.CL_SHOW_TIME}',
         dest = constants.CL_SHOW_TIME,
         help = 'How many frames to fast forward or rewind to',
-        default = constants.CL_SHOW_TIME,
-        type = bool
+        action = 'store_true'
     )
 
     # Get the user CLA's as a dictionary
