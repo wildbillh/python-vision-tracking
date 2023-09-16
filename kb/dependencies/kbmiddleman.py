@@ -8,6 +8,10 @@ from app.dependencies.roitracking import ROITracking
 logger = logging.getLogger()
 
 class KBMiddleMan (ThreadedMiddleMan):
+    """
+        Class that inherits from ThreadedMiddleMan that has specific behaviors
+        for tracking kiteboarders
+    """
 
     def __init__(self, inputQueue: Queue, outputQueue: Queue, inputProps: dict, 
                  outputProps: dict, processProps: dict, videoSaveProps):

@@ -131,8 +131,8 @@ class Main:
 
         # If the classifier filename is given in CLA use it, otherwise use value from properties
         classifier_file = self.args[constants.CL_CLASSIFIER_FILE] if self.args[constants.CL_CLASSIFIER_FILE] else self.properties[constants.CL_CLASSIFIER_FILE]
-
         logger.info(f'Source: {source_file}, Classifier: {classifier_file}')
+        
         # Get a class for processing the frames
         classifier = Classifier(classifier_file, props=self.properties[constants.CLASSIFIER_PROPS])
 
