@@ -2,7 +2,74 @@
 import array, cv2, logging, numpy as np
 from typing import List, Tuple, Union
 
+
 logger = logging.getLogger()
+
+class Track:
+    """
+        Structure of a single track
+
+    """
+
+    def __init__(self, historyCount):
+        """
+        """
+        self.levels_history = np.zeros((historyCount), dtype=np.float32)
+        self.corr_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
+        self.history_count = historyCount
+
+    # -----------------------------------------------------------------------------
+    
+    def generateEmptyHistogram (self):
+            """
+                Generate an empty histogram (all -1.0)
+            """
+            return np.full((256, 1), -1.0, dtype=np.float32)
+        
+    
+    # ------------------------------------------------------------------------
+
+    def addTrack (self, hist: np.ndarray, level: np.float32):
+        """
+            Keep track of the circular buffer. The histogram is of the shape
+            (256, 1), 
+        """
+        # We write the info at the last index of the list and then roll it to the top
+        if hist is None:
+            self.corr_hist_history[self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
+            self.levels_history[self.history_count-1] = np.float32(0.0)
+        else:
+            self.corr_hist_history[self.history_count-1] = hist
+            self.levels_history[self.history_count-1] = level
+
+        # Roll the entries we just added at the bottom, to the top
+        self.corr_hist_history = np.roll(self.corr_hist_history, shift=1, axis=0)
+        self.levels_history = np.roll(self.levels_history, shift=1, axis=0)  
+
+    # -------------------------------------------------------------
+
+    def getLatestHistogram (self) -> Tuple[int, Union[np.ndarray, None]]:
+        """
+            Return the index and value of the last non-empty histogram stored for this
+            Track.
+            If no histograms stored, return (-1, None)
+        """
+        ret_val = True
+        for i in range (self.history_count):
+            if self.corr_hist_history[i][0][0] >= 0:
+                return (i, self.corr_hist_history[i])
+        
+        return (-1, None)
+
+    # --------------------------------------------------------------
+    
+    def isEmpty (self):
+        return self.getLatestHistogram()[0] == -1
+    
+    def getLevelSums(self):
+        return np.sum(self.levels_history)
+
+# =========================================================================    
 
 class ROITracking:
 
@@ -10,17 +77,21 @@ class ROITracking:
         """
         """
         self.max_tracks = maxTracks
-        self.track_list = np.full((maxTracks, historyCount, 256, 1), -1.0, dtype=np.float32)
-        self.levels_track_list = np.zeros((maxTracks, historyCount))
-
+        #self.track_list = np.full((maxTracks, historyCount, 256, 1), -1.0, dtype=np.float32)
+        #self.levels_track_list = np.zeros((maxTracks, historyCount))
+ 
 
         self.history_count = historyCount
         self.first_run = True
         self.best_track_index = 0
         self.min_correlation_limit = 0.5
+
+        # Get the list of tracks
+        self.tracks = [Track(self.history_count) for i in range (self.max_tracks)]
+
+
         
     # --------------------------------------------------------------------------------------------
-
     def process (self, processFrame: np.ndarray, rects: List[Tuple[int,int,int,int]], levels: List[float]):
         """
             Given the process frame, list of roi dims and levels. Build correlation histograms from the 
@@ -38,7 +109,7 @@ class ROITracking:
 
         logger.info(f'process called levels: {level_list}')
 
-        last_stored_histograms = self.getLastStoredHistograms()
+        last_stored_histograms = self.getLatestHistograms()
         incoming_histograms = self.getIncomingHistograms (processFrame, rect_list)
 
         correlation_list = self.getCorrelationList (incoming_histograms, last_stored_histograms)
@@ -47,6 +118,7 @@ class ROITracking:
         # Get the indexes of any tracks that have no data
         empty_tracks_indexes = [i for i in range(self.max_tracks) if last_stored_histograms[i] is None]
 
+        # Get the indexes where there is no correlation to existing trackes
         mismatched_incoming_indexes = [i for i in range(object_count) if correlation_list[i] == -1]
 
         track_indexes_to_write = list(range(self.max_tracks))
@@ -54,14 +126,14 @@ class ROITracking:
         # first write the histograms that have correlations
         for i in range(object_count):
             if correlation_list[i] != -1:               
-                self._addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
+                self.addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
                 track_indexes_to_write.remove(correlation_list[i])    
                 
 
         # if we have uncorrelated objects and empty tracks, write them
         for mismatch in mismatched_incoming_indexes:
             if len(empty_tracks_indexes) > 0:
-                self._addTrack(incoming_histograms[mismatch], level_list[mismatch], empty_tracks_indexes[0]) 
+                self.addTrack(incoming_histograms[mismatch], level_list[mismatch], empty_tracks_indexes[0]) 
                 track_indexes_to_write.remove(empty_tracks_indexes[0])              
                 del(empty_tracks_indexes[0])
             else:
@@ -69,9 +141,10 @@ class ROITracking:
         
         # Now write empty hist into any tracks that haven't been written
         for ind in empty_tracks_indexes:
-            self._addTrack (None, 0.0, ind)
+            self.addTrack (None, 0.0, ind)
 
-        track_level_sums = [np.sum(self.levels_track_list[i]) for i in range(self.max_tracks)]
+        #track_level_sums = [np.sum(self.levels_track_list[i]) for i in range(self.max_tracks)]
+        track_level_sums = [self.tracks[i].getLevelSums() for i in range(self.max_tracks)]
         logger.info(f'level_sums: {track_level_sums}')
 
         calculated_best = np.argmax(track_level_sums)
@@ -102,11 +175,15 @@ class ROITracking:
     
     # -------------------------------------------------------------------
     
-    def _addTrack (self, hist: np.ndarray, level: float, index: int):
+    def addTrack (self, hist: np.ndarray, level: float, index: int):
         """
             Keep track of the circular buffer. The histogram is of the shape
             (256, 1), 
         """
+
+        self.tracks[index].addTrack(hist=hist, level=level)
+        return
+
         # We write the info at the last index of the list and then roll it to the top
         if hist is None:
             self.track_list[index, self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
@@ -137,11 +214,16 @@ class ROITracking:
     
     # -------------------------------------------------------------------------------
     
-    def getLastStoredHistograms (self) -> List[Union[np.ndarray, None]]:
+    def getLatestHistograms (self) -> List[Union[np.ndarray, None]]:
         """
             Query the histogram data and get the latest histogram for each track
             If no histograms, returns None for that entry in the list
         """
+        ret_list = []
+        for i in range(self.max_tracks):
+            ret_list.append(self.tracks[i].getLatestHistogram()[1])
+        return ret_list
+        
         ret_list = []
         for i in range(self.max_tracks):
             val = None
@@ -185,8 +267,7 @@ class ROITracking:
             if matrix[row, col] > self.min_correlation_limit:     
                 ret_list[row] = col 
             
-            matrix[:, col] = np.full((incoming_len), -1)
-           
+            matrix[:, col] = np.full((incoming_len), -1)         
 
         return ret_list
 
