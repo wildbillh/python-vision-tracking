@@ -63,10 +63,18 @@ class Track:
 
     # --------------------------------------------------------------
     
-    def isEmpty (self):
+    def isEmpty (self) -> bool:
+        """
+            Returns true if there are no histograms in the track
+        """
         return self.getLatestHistogram()[0] == -1
     
-    def getLevelSums(self):
+    # --------------------------------------------------------------
+    
+    def getLevelSums(self) -> np.float32:
+        """
+            Returns the sum of all of the levels in the track
+        """
         return np.sum(self.levels_history)
 
 # =========================================================================    
@@ -98,7 +106,6 @@ class ROITracking:
             best three roi's and store them in a circular buffer.
         """
 
-        
         # Figure out the how much data to process
         max_index = min(self.max_tracks, len(levels))
 
@@ -110,7 +117,7 @@ class ROITracking:
         logger.info(f'process called levels: {level_list}')
 
         last_stored_histograms = self.getLatestHistograms()
-        incoming_histograms = self.getIncomingHistograms (processFrame, rect_list)
+        incoming_histograms = self.calculateIncomingHistograms (processFrame, rect_list)
 
         correlation_list = self.getCorrelationList (incoming_histograms, last_stored_histograms)
         logger.info(f'correlation list: {correlation_list}')
@@ -157,7 +164,7 @@ class ROITracking:
         
     # -------------------------------------------------------------------
     
-    def sort (self, rects: List[Tuple[int,int,int,int]], levels: List[float], maxIndex: int) -> Tuple[List, List]:
+    def sort (self, rects: List[Tuple[int,int,int,int]], levels: List[float], maxIndex: int) -> Tuple[np.ndarray, np.ndarray]:
         """
             Sort both the rects and levels based on the levels values
         """  
@@ -181,24 +188,11 @@ class ROITracking:
             (256, 1), 
         """
 
-        self.tracks[index].addTrack(hist=hist, level=level)
-        return
-
-        # We write the info at the last index of the list and then roll it to the top
-        if hist is None:
-            self.track_list[index, self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
-            self.levels_track_list[index, self.history_count-1] = 0.0
-        else:
-            self.track_list[index, self.history_count-1] = hist
-            self.levels_track_list[index, self.history_count-1] = level
-
-        # Roll the entries we just added at the bottom, to the top
-        self.track_list[index] = np.roll(self.track_list[index], shift=1, axis=0)
-        self.levels_track_list[index] = np.roll(self.levels_track_list[index], shift=1, axis=0)
+        self.tracks[index].addTrack(hist=hist, level=level)      
 
     # ------------------------------------------------------------------------------
     
-    def getIncomingHistograms (self, frame, rectList):
+    def calculateIncomingHistograms (self, frame: np.ndarray, rectList):
         """
             Calculates the histograms for the incoming roi's
             Returns a list of size maxTracks
@@ -222,18 +216,9 @@ class ROITracking:
         ret_list = []
         for i in range(self.max_tracks):
             ret_list.append(self.tracks[i].getLatestHistogram()[1])
+        
         return ret_list
         
-        ret_list = []
-        for i in range(self.max_tracks):
-            val = None
-            for j in range(self.history_count):
-                val = self.track_list[i,j]
-                if val[0][0] > -1.0:
-                    break
-            ret_list.append(val if val[0][0] > -1 else None)
-
-        return ret_list
     
     # ------------------------------------------------------------------------------------------
     

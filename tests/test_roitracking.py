@@ -1,5 +1,5 @@
 
-import numpy as np, unittest
+import array, numpy as np, unittest
 from app.dependencies.roitracking import Track, ROITracking
 
 
@@ -11,7 +11,6 @@ class TrackTest (unittest.TestCase):
         self.assertEqual(track.corr_hist_history.shape, (15,256,1))
         self.assertEqual(track.levels_history.shape, (15,))
 
-    
     # -----------------------------------------------------------------
     
     def test_add_tracks (self):
@@ -48,6 +47,8 @@ class TrackTest (unittest.TestCase):
         self.assertEqual(track.levels_history[1], np.float32(0.0))
 
 
+# ===============================================================================
+
 class ROITrackingTest (unittest.TestCase):
 
     def test_constructor(self):
@@ -78,3 +79,49 @@ class ROITrackingTest (unittest.TestCase):
         latest_list = roi.getLatestHistograms()
         
         self.assertEqual(latest_list[0].all(), hist_data.all())
+
+    # -----------------------------------------------------------------------------
+
+    def test_sort (self):
+        """
+            Test the sorting function
+        """
+
+        rects_list = [(1,1,1,1), (2,2,2,2), (3,3,3,3)]
+        level_list = [2.01, 4.0, 3.02]
+
+        exp_rects_list = np.array([[2, 2, 2, 2],[3, 3, 3, 3],[1, 1, 1, 1]])
+        exp_level_list = np.array([4.0, 3.02, 2.01])
+
+        roi = ROITracking(maxTracks=3, historyCount=15)
+        sorted_rects, sorted_levels = roi.sort(rects=rects_list, levels=level_list, maxIndex=3)
+        
+        self.assertEqual(sorted_rects.all(), exp_rects_list.all())
+        self.assertEqual(sorted_levels.all(), exp_level_list.all())
+
+    # ----------------------------------------------------------------------------
+    
+    def test_calculate_histograms (self):
+
+        frame = np.full((60, 60, 1), 2, dtype=np.uint8)
+        rect_list = [(0,0,20,20), (20,20,20,20)]
+
+        roi = ROITracking(maxTracks=2, historyCount=1)
+        incoming_hists = roi.calculateIncomingHistograms(frame, rect_list)
+        self.assertEqual(len(incoming_hists), 2)
+
+        corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hists[1]])
+        self.assertEqual(corr_index, 0)
+
+    def test_process (self):
+
+        frame = np.full((60, 60, 1), 2, dtype=np.uint8)
+        rect_list = [(0,0,20,20), (20,20,20,20)]
+
+        roi = ROITracking(maxTracks=2, historyCount=1)
+
+        roi.process(processFrame=frame, rects=rect_list, levels=[4.0, 2.0])
+
+
+
+        
