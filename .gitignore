@@ -9,3 +9,4 @@ training/kb/cascade
 training/kb/clips
 training/kb/*.txt
 training/kb/*.vec
+.coverage
