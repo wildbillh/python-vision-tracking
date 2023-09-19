@@ -96,11 +96,10 @@ class ROITracking:
 
         # Get the list of tracks
         self.tracks = [Track(self.history_count) for i in range (self.max_tracks)]
-
-
         
     # --------------------------------------------------------------------------------------------
-    def process (self, processFrame: np.ndarray, rects: List[Tuple[int,int,int,int]], levels: List[float]):
+    
+    def process (self, processFrame: np.ndarray, hsvFrame: np.ndarray, rects: List[Tuple[int,int,int,int]], levels: List[float]):
         """
             Given the process frame, list of roi dims and levels. Build correlation histograms from the 
             best three roi's and store them in a circular buffer.

@@ -113,14 +113,19 @@ class ROITrackingTest (unittest.TestCase):
         corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hists[1]])
         self.assertEqual(corr_index, 0)
 
+    # ------------------------------------------------------------------------------
+    
     def test_process (self):
 
         frame = np.full((60, 60, 1), 2, dtype=np.uint8)
         rect_list = [(0,0,20,20), (20,20,20,20)]
 
-        roi = ROITracking(maxTracks=2, historyCount=1)
-
+        roi = ROITracking(maxTracks=3, historyCount=2)
         roi.process(processFrame=frame, rects=rect_list, levels=[4.0, 2.0])
+
+        self.assertFalse(roi.tracks[0].isEmpty())
+        self.assertFalse(roi.tracks[1].isEmpty())
+        self.assertTrue(roi.tracks[2].isEmpty())
 
 
 

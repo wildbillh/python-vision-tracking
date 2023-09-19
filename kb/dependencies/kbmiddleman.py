@@ -52,16 +52,17 @@ class KBMiddleMan (ThreadedMiddleMan):
 
         # Get a process frame by either resizing or copying the input frame
         if self.process_dims is not None:
-            process_frame = cv2.resize(src=frame, dsize=self.process_dims, interpolation=cv2.INTER_AREA)
+            resized_frame = cv2.resize(src=frame, dsize=self.process_dims, interpolation=cv2.INTER_AREA)
         else:
-            process_frame = np.copy(frame)
+            resized_frame = np.copy(frame)
 
         # If the finished frame dimension differs from  the actual frame, convert it
         if not np.array_equal(self.frame_dims, self.finish_dims):
             frame = cv2.resize(src=frame, dsize=self.finish_dims)
 
         # Set the process frame to gray scale
-        process_frame = cv2.cvtColor(process_frame, cv2.COLOR_BGR2GRAY)  
+        process_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2GRAY) 
+        hsv_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2HSV) 
         
         # Get the roi's and levels from the classifier
         objects, levels = self.process_class.process(process_frame)
@@ -81,7 +82,7 @@ class KBMiddleMan (ThreadedMiddleMan):
             #logger.info(f'{objects}, {levels}')
             #logger.info(f'{rect_list}, {levels_list}')
 
-            rect_list, levels_list, best_track = self.roi_tracking.process(processFrame=process_frame, rects=rect_list, levels=levels_list)
+            rect_list, levels_list, best_track = self.roi_tracking.process(processFrame=process_frame, hsvFrame=hsv_frame, rects=rect_list, levels=levels_list)
             logger.info(f'rect: {rect_list}, levels: {levels_list}, best track: {best_track}')
 
             object = None
@@ -114,9 +115,7 @@ class KBMiddleMan (ThreadedMiddleMan):
 
                     roi = process_frame[y:y+h, x:x+w]
                     
-                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)
-                    
-                    
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)               
                     
         else:
             # Track number of frames with no hits
