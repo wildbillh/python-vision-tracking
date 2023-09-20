@@ -5,6 +5,17 @@ from typing import List, Tuple, Union
 
 logger = logging.getLogger()
 
+class TrackData:
+    """
+        Define a simple class to hold track data
+    """
+    gray_hist: np.ndarray = None
+    hsv_hist: np.ndarray = None
+    level: np.float32 = 0.0
+    pos: Tuple[int, int] = (0,0)
+
+# ===========================================================================
+
 class Track:
     """
         Structure of a single track
@@ -117,6 +128,7 @@ class ROITracking:
 
         last_stored_histograms = self.getLatestHistograms()
         incoming_histograms = self.calculateIncomingHistograms (processFrame, rect_list)
+        incoming_hsv_hists = self.calculateIncomingHSVHistograms (hsvFrame, rect_list)
 
         correlation_list = self.getCorrelationList (incoming_histograms, last_stored_histograms)
         logger.info(f'correlation list: {correlation_list}')
@@ -191,7 +203,7 @@ class ROITracking:
 
     # ------------------------------------------------------------------------------
     
-    def calculateIncomingHistograms (self, frame: np.ndarray, rectList):
+    def calculateIncomingHistograms (self, frame: np.ndarray, rectList) -> List[np.ndarray]:
         """
             Calculates the histograms for the incoming roi's
             Returns a list of size maxTracks
@@ -204,6 +216,22 @@ class ROITracking:
             ret_hist_list.append(cv2.calcHist([roi], [0], None, [256], [0,256]))
 
         return ret_hist_list
+    
+    
+    def calculateIncomingHSVHistograms (self, frame: np.ndarray, rectList):
+        """
+            Calculates the histograms of the incoming hsv roi's
+        """
+
+        ret_hsv_list = []
+        max_index = min(self.max_tracks, len(rectList))
+        for i in range(max_index):
+            x, y, w, h = rectList[i]
+            roi = frame[y:y+h, x:x+w]
+            ret_hsv_list.append(cv2.calcHist([roi], [0,1], None, [180,256], [0, 180, 0, 256]))
+
+        return ret_hsv_list
+
     
     # -------------------------------------------------------------------------------
     
