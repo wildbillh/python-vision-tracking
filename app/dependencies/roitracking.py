@@ -64,7 +64,7 @@ class Track:
 
     # -------------------------------------------------------------
 
-    def getLatestHistogram (self) -> Tuple[int, Union[np.ndarray, None]]:
+    def getLatestHistogram (self) -> Tuple[int, TrackData]:
         """
             Return the index and value of the last non-empty histogram stored for this
             Track.
@@ -73,7 +73,8 @@ class Track:
         ret_val = True
         for i in range (self.history_count):
             if self.gray_hist_history[i][0][0] >= 0:
-                return (i, self.gray_hist_history[i])
+                track_data = TrackData(grayHist=self.gray_hist_history[i])
+                return (i, track_data)
         
         return (-1, None)
 
@@ -127,11 +128,14 @@ class ROITracking:
 
         logger.info(f'process called levels: {level_list}')
 
+
+
         last_stored_histograms = self.getLatestHistograms()
         incoming_histograms = self.calculateIncomingHistograms (processFrame, rect_list)
         incoming_hsv_hists = self.calculateIncomingHSVHistograms (hsvFrame, rect_list)
 
-        correlation_list = self.getCorrelationList (incoming_histograms, last_stored_histograms)
+        correlation_list = self.getCorrelationList (incoming_histograms, incoming_hsv_hists, 
+                                                    last_stored_histograms)
         logger.info(f'correlation list: {correlation_list}')
 
         # Get the indexes of any tracks that have no data
@@ -223,6 +227,8 @@ class ROITracking:
 
         return ret_hist_list
     
+
+    # ----------------------------------------------------------------------------
     
     def calculateIncomingHSVHistograms (self, frame: np.ndarray, rectList):
         """
@@ -241,21 +247,25 @@ class ROITracking:
     
     # -------------------------------------------------------------------------------
     
-    def getLatestHistograms (self) -> List[Union[np.ndarray, None]]:
+    def getLatestHistograms (self) -> List[Union[TrackData, None]]:
         """
             Query the histogram data and get the latest histogram for each track
             If no histograms, returns None for that entry in the list
         """
         ret_list = []
         for i in range(self.max_tracks):
-            ret_list.append(self.tracks[i].getLatestHistogram()[1])
+            
+            ind, track_data = self.tracks[i].getLatestHistogram()
+            ret_list.append(track_data.gray_hist if track_data else None)
         
         return ret_list
         
     
     # ------------------------------------------------------------------------------------------
     
-    def getCorrelationList (self, incomingHistograms: List[np.ndarray], lastStoredHistograms: List[np.ndarray]):
+    def getCorrelationList (self, incomingHistograms: List[np.ndarray], 
+                            incomingHSVHistograms: List[np.ndarray],
+                            lastStoredHistograms: List[np.ndarray]):
         """
             Returns a list the same size as the incoming rects (max = 3). Each element is either the index of the tracking
             that corresponds or -1
