@@ -9,10 +9,15 @@ class TrackData:
     """
         Define a simple class to hold track data
     """
-    gray_hist: np.ndarray = None
-    hsv_hist: np.ndarray = None
-    level: np.float32 = 0.0
-    pos: Tuple[int, int] = (0,0)
+
+    def __init__(self, grayHist: np.ndarray = None, hsvHist: np.ndarray = None, 
+                 level: np.float32 = 0.0, pos: Tuple[int,int] = None):
+        """
+        """
+        self.gray_hist = grayHist
+        self.hsv_hist = hsvHist
+        self.level = level
+        self.pos = pos
 
 # ===========================================================================
 
@@ -25,8 +30,8 @@ class Track:
     def __init__(self, historyCount):
         """
         """
-        self.levels_history = np.zeros((historyCount), dtype=np.float32)
-        self.corr_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
+        self.level_history = np.zeros((historyCount), dtype=np.float32)
+        self.gray_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
         self.history_count = historyCount
 
     # -----------------------------------------------------------------------------
@@ -40,22 +45,22 @@ class Track:
     
     # ------------------------------------------------------------------------
 
-    def addTrack (self, hist: np.ndarray, level: np.float32):
+    def addTrack (self, trackData: TrackData):
         """
             Keep track of the circular buffer. The histogram is of the shape
             (256, 1), 
         """
         # We write the info at the last index of the list and then roll it to the top
-        if hist is None:
-            self.corr_hist_history[self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
-            self.levels_history[self.history_count-1] = np.float32(0.0)
+        if trackData.gray_hist is None:
+            self.gray_hist_history[self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
+            self.level_history[self.history_count-1] = np.float32(0.0)
         else:
-            self.corr_hist_history[self.history_count-1] = hist
-            self.levels_history[self.history_count-1] = level
+            self.gray_hist_history[self.history_count-1] = trackData.gray_hist
+            self.level_history[self.history_count-1] = trackData.level
 
         # Roll the entries we just added at the bottom, to the top
-        self.corr_hist_history = np.roll(self.corr_hist_history, shift=1, axis=0)
-        self.levels_history = np.roll(self.levels_history, shift=1, axis=0)  
+        self.gray_hist_history = np.roll(self.gray_hist_history, shift=1, axis=0)
+        self.level_history = np.roll(self.level_history, shift=1, axis=0)  
 
     # -------------------------------------------------------------
 
@@ -67,8 +72,8 @@ class Track:
         """
         ret_val = True
         for i in range (self.history_count):
-            if self.corr_hist_history[i][0][0] >= 0:
-                return (i, self.corr_hist_history[i])
+            if self.gray_hist_history[i][0][0] >= 0:
+                return (i, self.gray_hist_history[i])
         
         return (-1, None)
 
@@ -86,7 +91,7 @@ class Track:
         """
             Returns the sum of all of the levels in the track
         """
-        return np.sum(self.levels_history)
+        return np.sum(self.level_history)
 
 # =========================================================================    
 
@@ -96,10 +101,6 @@ class ROITracking:
         """
         """
         self.max_tracks = maxTracks
-        #self.track_list = np.full((maxTracks, historyCount, 256, 1), -1.0, dtype=np.float32)
-        #self.levels_track_list = np.zeros((maxTracks, historyCount))
- 
-
         self.history_count = historyCount
         self.first_run = True
         self.best_track_index = 0
@@ -143,15 +144,20 @@ class ROITracking:
 
         # first write the histograms that have correlations
         for i in range(object_count):
-            if correlation_list[i] != -1:               
-                self.addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
+            if correlation_list[i] != -1:
+                track_data = TrackData(grayHist=incoming_histograms[i],
+                                       level=level_list[i])               
+                #self.addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
+                self.addTrack(trackData=track_data, index=correlation_list[i])
                 track_indexes_to_write.remove(correlation_list[i])    
                 
 
         # if we have uncorrelated objects and empty tracks, write them
         for mismatch in mismatched_incoming_indexes:
             if len(empty_tracks_indexes) > 0:
-                self.addTrack(incoming_histograms[mismatch], level_list[mismatch], empty_tracks_indexes[0]) 
+                track_data = TrackData(grayHist=incoming_histograms[mismatch],
+                                      level=level_list[mismatch])
+                self.addTrack(track_data, empty_tracks_indexes[0]) 
                 track_indexes_to_write.remove(empty_tracks_indexes[0])              
                 del(empty_tracks_indexes[0])
             else:
@@ -159,7 +165,7 @@ class ROITracking:
         
         # Now write empty hist into any tracks that haven't been written
         for ind in empty_tracks_indexes:
-            self.addTrack (None, 0.0, ind)
+            self.addTrack (TrackData(), ind)
 
         #track_level_sums = [np.sum(self.levels_track_list[i]) for i in range(self.max_tracks)]
         track_level_sums = [self.tracks[i].getLevelSums() for i in range(self.max_tracks)]
@@ -193,13 +199,13 @@ class ROITracking:
     
     # -------------------------------------------------------------------
     
-    def addTrack (self, hist: np.ndarray, level: float, index: int):
+    def addTrack (self, trackData: TrackData, index: int):
         """
             Keep track of the circular buffer. The histogram is of the shape
             (256, 1), 
         """
 
-        self.tracks[index].addTrack(hist=hist, level=level)      
+        self.tracks[index].addTrack(trackData = trackData)      
 
     # ------------------------------------------------------------------------------
     
