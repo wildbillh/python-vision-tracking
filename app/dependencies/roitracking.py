@@ -14,10 +14,66 @@ class TrackData:
                  level: np.float32 = 0.0, pos: Tuple[int,int] = None):
         """
         """
-        self.gray_hist = grayHist
-        self.hsv_hist = hsvHist
+        self.gray_hist = grayHist if grayHist is not None else TrackData.generateEmptyHistogram()
+        self.hsv_hist = hsvHist if hsvHist is not None else TrackData.generateEmptyHistogram(isGrayScale=False)
         self.level = level
         self.pos = pos
+    
+    # -----------------------------------------------------------------------
+
+    def isEmpty(self):
+        """
+            Determine if the TrackData instance is empty
+        """
+
+        return (self.gray_hist[0][0] == np.float32(-1.0)) and (self.hsv_hist[0][0] == np.float32(-1.0))
+    
+    # ----------------------------------------------------------------------
+
+    def __copy__(self):
+        """
+        """
+        return TrackData (grayHist=self.gray_hist.copy(),
+                        hsvHist=self.hsv_hist.copy(),
+                        level=np.float32(self.level),
+                        pos = tuple(self.pos) if self.pos is not None else None)
+
+    # ----------------------------------------------------------------------
+
+    def __eq__ (self, other):
+
+        if not isinstance(other, self.__class__):
+            return False
+        
+        if other.gray_hist is None or self.gray_hist is None \
+            or other.gray_hist.all() != self.gray_hist.all():
+            return False
+        
+        if other.hsv_hist is None or self.hsv_hist is None \
+            or other.hsv_hist.all() != self.hsv_hist.all():
+            return False
+        
+        if other.level is None or self.level is None \
+            or other.level != self.level:
+            return False
+        
+        if other.pos is None or self.pos is None \
+            or other.pos != self.pos:
+            return False
+        
+
+        return True
+    
+    # --------------------------------------------------------------------
+    
+    @staticmethod
+    def generateEmptyHistogram (isGrayScale: bool = True):
+        
+        if isGrayScale:
+            return np.full((256, 1), -1.0, dtype=np.float32)
+            
+        return np.full((180, 256), -1.0, dtype=np.float32)   
+
 
 # ===========================================================================
 
@@ -30,17 +86,46 @@ class Track:
     def __init__(self, historyCount):
         """
         """
+        self.history_count = historyCount
+        temp: List[TrackData] = []
+
+        for i in range(self.history_count):
+            temp.append(self.generateEmptyTrack())
+
+        self.history = np.array(temp, dtype=TrackData)    
+
+        """    
         self.level_history = np.zeros((historyCount), dtype=np.float32)
         self.gray_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
-        self.history_count = historyCount
+        self.hsv_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
+        """
+
+    def getByIndex (self, ind: int) -> TrackData:
+        return self.history[ind]
+
+    # ----------------------------------------------------------------------------
+    
+    @staticmethod
+    def generateEmptyTrack():
+        """
+        """
+        return TrackData(
+                grayHist=Track.generateEmptyHistogram(),
+                hsvHist=Track.generateEmptyHistogram(isGrayScale=False),
+                level=np.float32(0.0), pos=None)
 
     # -----------------------------------------------------------------------------
     
-    def generateEmptyHistogram (self):
+    @staticmethod
+    def generateEmptyHistogram (isGrayScale: bool = True):
             """
                 Generate an empty histogram (all -1.0)
             """
-            return np.full((256, 1), -1.0, dtype=np.float32)
+
+            if isGrayScale:
+                return np.full((256, 1), -1.0, dtype=np.float32)
+            
+            return np.full((180, 256), -1.0, dtype=np.float32)
         
     
     # ------------------------------------------------------------------------
@@ -50,17 +135,28 @@ class Track:
             Keep track of the circular buffer. The histogram is of the shape
             (256, 1), 
         """
+
+        insert_index = self.history_count - 1
+        if TrackData is None:
+            self.history[insert_index] = Track.generateEmptyTrack()
+        else: 
+            self.history[insert_index] = trackData  
+
+        """
         # We write the info at the last index of the list and then roll it to the top
         if trackData.gray_hist is None:
-            self.gray_hist_history[self.history_count-1] = np.full((256, 1), -1.0, dtype=np.float32)
+            self.gray_hist_history[self.history_count-1] = self.generateEmptyHistogram()
+            self.hsv_hist_history[self.history_count-1] = self.generateEmptyHistogram()
             self.level_history[self.history_count-1] = np.float32(0.0)
         else:
             self.gray_hist_history[self.history_count-1] = trackData.gray_hist
+            self.hsv_hist_history[self.history_count-1] = trackData.hsv_hist
             self.level_history[self.history_count-1] = trackData.level
 
+        """
         # Roll the entries we just added at the bottom, to the top
-        self.gray_hist_history = np.roll(self.gray_hist_history, shift=1, axis=0)
-        self.level_history = np.roll(self.level_history, shift=1, axis=0)  
+        self.history = np.roll(self.history, shift=1, axis=0)
+          
 
     # -------------------------------------------------------------
 
@@ -72,9 +168,8 @@ class Track:
         """
         ret_val = True
         for i in range (self.history_count):
-            if self.gray_hist_history[i][0][0] >= 0:
-                track_data = TrackData(grayHist=self.gray_hist_history[i])
-                return (i, track_data)
+            if self.history[i].gray_hist[0][0] >= 0:
+                return (i, self.history[i])
         
         return (-1, None)
 
@@ -130,7 +225,7 @@ class ROITracking:
 
 
 
-        last_stored_histograms = self.getLatestHistograms()
+        last_stored_histograms: List[TrackData] = self.getLatestHistograms()
         incoming_histograms = self.calculateIncomingHistograms (processFrame, rect_list)
         incoming_hsv_hists = self.calculateIncomingHSVHistograms (hsvFrame, rect_list)
 
@@ -240,7 +335,9 @@ class ROITracking:
         for i in range(max_index):
             x, y, w, h = rectList[i]
             roi = frame[y:y+h, x:x+w]
-            ret_hsv_list.append(cv2.calcHist([roi], [0,1], None, [180,256], [0, 180, 0, 256]))
+            hist = cv2.calcHist([roi], [0,1], None, [180,256], [0, 180, 0, 256])
+            cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+            ret_hsv_list.append(hist)
 
         return ret_hsv_list
 
@@ -256,31 +353,34 @@ class ROITracking:
         for i in range(self.max_tracks):
             
             ind, track_data = self.tracks[i].getLatestHistogram()
-            ret_list.append(track_data.gray_hist if track_data else None)
+            ret_list.append(track_data if track_data else None)
         
         return ret_list
         
     
     # ------------------------------------------------------------------------------------------
     
-    def getCorrelationList (self, incomingHistograms: List[np.ndarray], 
+    def getCorrelationList (self, incomingHistograms: List['np.ndarray[np.uint8]'], 
                             incomingHSVHistograms: List[np.ndarray],
-                            lastStoredHistograms: List[np.ndarray]):
+                            lastStoredHistograms: List[Union[TrackData,None]]):
         """
             Returns a list the same size as the incoming rects (max = 3). Each element is either the index of the tracking
             that corresponds or -1
         """
+
         incoming_len = len(incomingHistograms)
         stored_len = len(lastStoredHistograms)
         
         # Build a 2 dimensional array (incoming X tracks) filled with 0.0
-        matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
+        gray_matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
         
         # for each object, compare the histograms of each last stored track histogram
         for i in range(incoming_len):
             for j in range(stored_len):
                 if lastStoredHistograms[j] is not None:
-                    matrix[i,j] = cv2.compareHist(incomingHistograms[i], lastStoredHistograms[j], cv2.HISTCMP_CORREL)
+                    combined_corr = cv2.compareHist(incomingHistograms[i], lastStoredHistograms[j].gray_hist, cv2.HISTCMP_CORREL)
+                    combined_corr += cv2.compareHist(incomingHSVHistograms[i], lastStoredHistograms[j].hsv_hist, cv2.HISTCMP_CORREL)
+                    gray_matrix[i,j] = combined_corr
 
         # Build a single dimension array the size of the incoming histograms to store the index data. 
         # Initialize each value to -1 (unset)
@@ -291,11 +391,11 @@ class ROITracking:
         # 2. if above the minimum correlation threshold, set the value at row to col
         # 3. Overwrite the column in the source matrix with -1.0, so it can't be used again 
         for i in range(incoming_len):
-            row, col = np.unravel_index(np.argmax(matrix), (incoming_len,stored_len))
-            if matrix[row, col] > self.min_correlation_limit:     
+            row, col = np.unravel_index(np.argmax(gray_matrix), (incoming_len,stored_len))
+            if gray_matrix[row, col] > self.min_correlation_limit:     
                 ret_list[row] = col 
             
-            matrix[:, col] = np.full((incoming_len), -1)         
+            gray_matrix[:, col] = np.full((incoming_len), -1)         
 
         return ret_list
 

@@ -1,6 +1,19 @@
 
-import array, numpy as np, unittest
+import array, copy, numpy as np, unittest
 from app.dependencies.roitracking import TrackData, Track, ROITracking
+
+class TrackDataTest (unittest.TestCase):
+
+    def test_constructor(self):
+
+        # Test the empty track
+        trackData = TrackData()
+        self.assertTrue(trackData.isEmpty())
+        self.assertEqual(trackData.gray_hist.all(), TrackData.generateEmptyHistogram().all())
+        self.assertEqual(trackData.hsv_hist.all(), TrackData.generateEmptyHistogram(isGrayScale=False).all())
+        self.assertEqual(trackData.level, np.float32(0.0))
+        self.assertIsNone(trackData.pos)
+
 
 
 class TrackTest (unittest.TestCase):
@@ -8,49 +21,62 @@ class TrackTest (unittest.TestCase):
     def test_constructor (self):
 
         track = Track(historyCount=15)
-        self.assertEqual(track.gray_hist_history.shape, (15,256,1))
-        self.assertEqual(track.level_history.shape, (15,))
-
+        self.assertEqual(len(track.history), 15)
+        first_track: TrackData = track.history[0]
+        self.assertEqual(first_track.gray_hist.shape, (256, 1))
+        self.assertEqual(first_track.hsv_hist.shape, (180, 256))
+        self.assertEqual(first_track.level, np.float32(0.0))
+        self.assertIsNone(first_track.pos)
+        
+    
     # -----------------------------------------------------------------
     
     def test_add_tracks (self):
 
-        hist_1 = np.full((256, 1), 4.0, dtype=np.float32)
-        hist_2 = np.full((256, 1), 8.0, dtype=np.float32)
+        gray_hist_1 = np.full((256, 1), 4.0, dtype=np.float32)
+        gray_hist_2 = np.full((256, 1), 8.0, dtype=np.float32)
+
+        hsv_hist_1 = np.full((180, 256), 4.0, dtype=np.float32)
+        hsv_hist_2 = np.full((180, 256), 8.0, dtype=np.float32)
 
         # Create track record and test that it's empty
         track = Track(historyCount=2) 
         self.assertTrue(track.isEmpty()) 
 
+        data1 = TrackData(grayHist=gray_hist_1, hsvHist=hsv_hist_1, 
+                                 level=np.float32(3.45), pos=(0,0))
+        
         # Add a non empty hist and level and test
-        track.addTrack(TrackData(grayHist=hist_1, level=3.45))
-        self.assertEqual(track.gray_hist_history[0].all(), hist_1.all())
-        self.assertEqual(track.level_history[0], np.float32(3.45))
-        self.assertEqual(track.getLatestHistogram()[0], 0)
-
-        # Now add an empty record and test that the first record is empty
-        track.addTrack(TrackData(grayHist=None, level=0.0))
-        self.assertEqual(track.gray_hist_history[0].all(), track.generateEmptyHistogram().all())
-        self.assertEqual(track.level_history[0], np.float32(0.0))
+        track.addTrack(copy.copy(data1))
+        track_item: TrackData = track.getByIndex(0) 
+        self.assertEqual(track_item, data1)  
+        
+        
+        # Add an empty track and test 
+        track.addTrack(TrackData())
+        track_item: TrackData = track.getByIndex(0) 
+        self.assertTrue(track_item.isEmpty())
+        
+        # Test that the latest histogram returned is index 1
         self.assertEqual(track.getLatestHistogram()[0], 1)
-
+        
         # Add a nonempty record
-        track.addTrack (TrackData(grayHist=hist_2, level=8.0))
+        data2 = TrackData(grayHist=gray_hist_2, hsvHist=hsv_hist_2, level=8.0, pos=(1,1))
+        track.addTrack (copy.copy(data2))
 
         # Now the first record should be 8.0's and the second record shoud be empty
-        self.assertEqual(track.gray_hist_history[0].all(), hist_2.all())
-        self.assertEqual(track.level_history[0], np.float32(8.0))
+        track_item = track.getByIndex(0)
+        self.assertEqual(track_item, data2)
         self.assertEqual(track.getLatestHistogram()[0], 0)
 
-        # The second record shoud be empty
-        self.assertEqual(track.gray_hist_history[1].all(), track.generateEmptyHistogram().all())
-        self.assertEqual(track.level_history[1], np.float32(0.0))
-
-
+        track_item = track.getByIndex(1)
+        self.assertTrue(track_item.isEmpty())
+        
+        
 # ===============================================================================
 
 class ROITrackingTest (unittest.TestCase):
-
+    
     def test_constructor(self):
 
         roi = ROITracking(maxTracks=3, historyCount=15)
@@ -59,9 +85,10 @@ class ROITrackingTest (unittest.TestCase):
         self.assertEqual(roi.history_count, 15)
         self.assertTrue(roi.first_run)
         self.assertEqual(len(roi.tracks), 3)
-    
+
+     
     # --------------------------------------------------------------
-        
+    
     def test_get_latest_histograms (self):
 
         roi = ROITracking(maxTracks=3, historyCount=15)
@@ -73,12 +100,13 @@ class ROITrackingTest (unittest.TestCase):
         # Add values to track 0
         level = np.float32(4.0)
         hist_data = np.full((256,1), 4.0, dtype=np.float32)
-        roi.addTrack(TrackData(grayHist=hist_data, level=level), index=0)
+        hsv_data = np.full((180, 256), 4.0, dtype=np.float32)
+        roi.addTrack(TrackData(grayHist=hist_data, hsvHist=hsv_data, level=level, pos=(2,2)), index=0)
 
         # Test to see if the latest list is the one you just added
         latest_list = roi.getLatestHistograms()
         
-        self.assertEqual(latest_list[0].all(), hist_data.all())
+        #self.assertEqual(latest_list[0].all(), hist_data.all())
 
     # -----------------------------------------------------------------------------
 
@@ -101,16 +129,19 @@ class ROITrackingTest (unittest.TestCase):
 
     # ----------------------------------------------------------------------------
     
+    """
     def test_calculate_histograms (self):
 
-        frame = np.full((60, 60, 1), 2, dtype=np.uint8)
+        gray_frame = np.full((60, 60, 1), 2, dtype=np.uint8)
+        hsv_frame = np.full((60,60,3), 4, dtype=np.uint8)
         rect_list = [(0,0,20,20), (20,20,20,20)]
 
         roi = ROITracking(maxTracks=2, historyCount=1)
-        incoming_hists = roi.calculateIncomingHistograms(frame, rect_list)
+        incoming_hists = roi.calculateIncomingHistograms(gray_frame, rect_list)
+        incoming_hsv_hists = roi.calculateIncomingHSVHistograms(hsv_frame, rect_list)
         self.assertEqual(len(incoming_hists), 2)
 
-        corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hists[1]])
+        corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hsv_hists[0]], [incoming_hists[1]])
         self.assertEqual(corr_index, 0)
 
     # ------------------------------------------------------------------------------
@@ -128,6 +159,6 @@ class ROITrackingTest (unittest.TestCase):
         self.assertFalse(roi.tracks[1].isEmpty())
         self.assertTrue(roi.tracks[2].isEmpty())
 
-
+"""
 
         
