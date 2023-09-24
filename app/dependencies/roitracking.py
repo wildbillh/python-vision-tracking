@@ -26,7 +26,7 @@ class TrackData:
             Determine if the TrackData instance is empty
         """
 
-        return (self.gray_hist[0][0] == np.float32(-1.0)) and (self.hsv_hist[0][0] == np.float32(-1.0))
+        return self.gray_hist[0][0] == np.float32(-1.0)
     
     # ----------------------------------------------------------------------
 
@@ -100,6 +100,8 @@ class Track:
         self.hsv_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
         """
 
+    # ----------------------------------------------------------------------
+    
     def getByIndex (self, ind: int) -> TrackData:
         return self.history[ind]
 
@@ -137,30 +139,19 @@ class Track:
         """
 
         insert_index = self.history_count - 1
-        if TrackData is None:
+        if trackData is None or trackData.isEmpty():
             self.history[insert_index] = Track.generateEmptyTrack()
         else: 
             self.history[insert_index] = trackData  
 
-        """
-        # We write the info at the last index of the list and then roll it to the top
-        if trackData.gray_hist is None:
-            self.gray_hist_history[self.history_count-1] = self.generateEmptyHistogram()
-            self.hsv_hist_history[self.history_count-1] = self.generateEmptyHistogram()
-            self.level_history[self.history_count-1] = np.float32(0.0)
-        else:
-            self.gray_hist_history[self.history_count-1] = trackData.gray_hist
-            self.hsv_hist_history[self.history_count-1] = trackData.hsv_hist
-            self.level_history[self.history_count-1] = trackData.level
 
-        """
         # Roll the entries we just added at the bottom, to the top
         self.history = np.roll(self.history, shift=1, axis=0)
           
 
     # -------------------------------------------------------------
 
-    def getLatestHistogram (self) -> Tuple[int, TrackData]:
+    def getLatestHistogram (self) -> Tuple[int, Union[TrackData, None]]:
         """
             Return the index and value of the last non-empty histogram stored for this
             Track.
@@ -168,9 +159,13 @@ class Track:
         """
         ret_val = True
         for i in range (self.history_count):
-            if self.history[i].gray_hist[0][0] >= 0:
+            
+            if self.history[i] is not None and self.history[i].gray_hist[0][0] >= 0:
                 return (i, self.history[i])
         
+        # if we get here the track is empty, so return the first TrackData object
+        # and TrackData.isEmpty() will be true
+        #return (-1, self.history[0])
         return (-1, None)
 
     # --------------------------------------------------------------
@@ -187,7 +182,7 @@ class Track:
         """
             Returns the sum of all of the levels in the track
         """
-        return np.sum(self.level_history)
+        return np.sum([self.history[i].level for i in range(self.history_count)])
 
 # =========================================================================    
 
@@ -226,11 +221,17 @@ class ROITracking:
 
 
         last_stored_histograms: List[TrackData] = self.getLatestHistograms()
-        incoming_histograms = self.calculateIncomingHistograms (processFrame, rect_list)
-        incoming_hsv_hists = self.calculateIncomingHSVHistograms (hsvFrame, rect_list)
+        logger.info(f'last_stored_hist len: {len(last_stored_histograms)}')
+        incoming_histograms: List[TrackData] = self.calculateIncomingHistograms (
+            grayFrame=processFrame, 
+            hsvFrame=hsvFrame,
+            rectList=rect_list)
+        
 
-        correlation_list = self.getCorrelationList (incoming_histograms, incoming_hsv_hists, 
-                                                    last_stored_histograms)
+        correlation_list = self.getCorrelationList (incomingTracks = incoming_histograms,
+                                                    lastStoredTracks = last_stored_histograms,
+                                                    )
+        
         logger.info(f'correlation list: {correlation_list}')
 
         # Get the indexes of any tracks that have no data
@@ -244,7 +245,8 @@ class ROITracking:
         # first write the histograms that have correlations
         for i in range(object_count):
             if correlation_list[i] != -1:
-                track_data = TrackData(grayHist=incoming_histograms[i],
+                track_data = TrackData(grayHist=incoming_histograms[i].gray_hist,
+                                       hsvHist=incoming_histograms[i].hsv_hist,
                                        level=level_list[i])               
                 #self.addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
                 self.addTrack(trackData=track_data, index=correlation_list[i])
@@ -254,7 +256,8 @@ class ROITracking:
         # if we have uncorrelated objects and empty tracks, write them
         for mismatch in mismatched_incoming_indexes:
             if len(empty_tracks_indexes) > 0:
-                track_data = TrackData(grayHist=incoming_histograms[mismatch],
+                track_data = TrackData(grayHist=incoming_histograms[mismatch].gray_hist,
+                                       hsvHist=incoming_histograms[mismatch].hsv_hist,
                                       level=level_list[mismatch])
                 self.addTrack(track_data, empty_tracks_indexes[0]) 
                 track_indexes_to_write.remove(empty_tracks_indexes[0])              
@@ -311,7 +314,7 @@ class ROITracking:
     def calculateIncomingHistograms (self, 
                                      grayFrame: np.ndarray, 
                                      hsvFrame: np.ndarray, 
-                                     rectList: Tuple[int,int,int,int]) -> List[TrackData]:
+                                     rectList: List[Tuple[int,int,int,int]]) -> List[TrackData]:
         """
             Calculates the gray and hsv histograms for the incoming roi's
             Returns a list of TrackData
@@ -347,7 +350,7 @@ class ROITracking:
         for i in range(self.max_tracks):
             
             ind, track_data = self.tracks[i].getLatestHistogram()
-            ret_list.append(track_data if track_data else None)
+            ret_list.append(track_data if ind >= 0 else None)
         
         return ret_list
 
@@ -370,7 +373,7 @@ class ROITracking:
         # for each object, compare the histograms of each last stored track histogram
         for i in range(incoming_len):
             for j in range(stored_len):
-                if not lastStoredTracks[j].isEmpty():
+                if lastStoredTracks[j] is not None and not lastStoredTracks[j].isEmpty():
                     combined_corr = cv2.compareHist(incomingTracks[i].gray_hist, lastStoredTracks[j].gray_hist, cv2.HISTCMP_CORREL)
                     combined_corr += cv2.compareHist(incomingTracks[i].hsv_hist, lastStoredTracks[j].hsv_hist, cv2.HISTCMP_CORREL)
                     gray_matrix[i,j] = combined_corr
@@ -392,46 +395,7 @@ class ROITracking:
 
         return ret_list    
     
-    # ------------------------------------------------------------------------------------------
-    
-    def getCorrelationList1 (self, incomingHistograms: List['np.ndarray[np.uint8]'], 
-                            incomingHSVHistograms: List[np.ndarray],
-                            lastStoredHistograms: List[Union[TrackData,None]]):
-        """
-            Returns a list the same size as the incoming rects (max = 3). Each element is either the index of the tracking
-            that corresponds or -1
-        """
-
-        incoming_len = len(incomingHistograms)
-        stored_len = len(lastStoredHistograms)
-        
-        # Build a 2 dimensional array (incoming X tracks) filled with 0.0
-        gray_matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
-        
-        # for each object, compare the histograms of each last stored track histogram
-        for i in range(incoming_len):
-            for j in range(stored_len):
-                if lastStoredHistograms[j] is not None:
-                    combined_corr = cv2.compareHist(incomingHistograms[i], lastStoredHistograms[j].gray_hist, cv2.HISTCMP_CORREL)
-                    combined_corr += cv2.compareHist(incomingHSVHistograms[i], lastStoredHistograms[j].hsv_hist, cv2.HISTCMP_CORREL)
-                    gray_matrix[i,j] = combined_corr
-
-        # Build a single dimension array the size of the incoming histograms to store the index data. 
-        # Initialize each value to -1 (unset)
-        ret_list = np.full((incoming_len), -1, dtype=np.intp)
-        
-        # For the number of incoming iterations:
-        # 1. Get the max correletion as row,col
-        # 2. if above the minimum correlation threshold, set the value at row to col
-        # 3. Overwrite the column in the source matrix with -1.0, so it can't be used again 
-        for i in range(incoming_len):
-            row, col = np.unravel_index(np.argmax(gray_matrix), (incoming_len,stored_len))
-            if gray_matrix[row, col] > self.min_correlation_limit:     
-                ret_list[row] = col 
-            
-            gray_matrix[:, col] = np.full((incoming_len), -1)         
-
-        return ret_list
+   
 
 
 

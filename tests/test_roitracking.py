@@ -137,11 +137,8 @@ class ROITrackingTest (unittest.TestCase):
 
         roi = ROITracking(maxTracks=2, historyCount=1)
         incoming_hists = roi.calculateIncomingHistograms(grayFrame=gray_frame, hsvFrame=hsv_frame, rectList=rect_list)
-        #incoming_gray_hists = roi.calculateIncomingHistograms(gray_frame, rect_list)
-        #incoming_hsv_hists = roi.calculateIncomingHSVHistograms(hsv_frame, rect_list)
         self.assertEqual(len(incoming_hists), 2)
-
-        
+      
 
         corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hists[1]])
         self.assertEqual(corr_index[0], 0)
