@@ -46,11 +46,11 @@ class TrackData:
             return False
         
         if other.gray_hist is None or self.gray_hist is None \
-            or other.gray_hist.all() != self.gray_hist.all():
+            or not np.array_equal(other.gray_hist, self.gray_hist):
             return False
         
         if other.hsv_hist is None or self.hsv_hist is None \
-            or other.hsv_hist.all() != self.hsv_hist.all():
+            or not np.array_equal(other.hsv_hist, self.hsv_hist):
             return False
         
         if other.level is None or self.level is None \
@@ -132,14 +132,14 @@ class Track:
     
     # ------------------------------------------------------------------------
 
-    def addTrack (self, trackData: TrackData):
+    def addTrack (self, trackData: TrackData = None):
         """
             Keep track of the circular buffer. The histogram is of the shape
             (256, 1), 
         """
 
         insert_index = self.history_count - 1
-        if trackData is None or trackData.isEmpty():
+        if trackData is None:
             self.history[insert_index] = Track.generateEmptyTrack()
         else: 
             self.history[insert_index] = trackData  

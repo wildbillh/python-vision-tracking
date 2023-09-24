@@ -4,7 +4,7 @@ from app.dependencies.roitracking import TrackData, Track, ROITracking
 
 class TrackDataTest (unittest.TestCase):
 
-    def test_constructor(self):
+    def test_constructor_and_euality(self):
 
         # Test the empty track
         trackData = TrackData()
@@ -14,7 +14,32 @@ class TrackDataTest (unittest.TestCase):
         self.assertEqual(trackData.level, np.float32(0.0))
         self.assertIsNone(trackData.pos)
 
+        # Test the == operator
+        self.assertNotEqual(trackData, 1)
+        
+        # Get a class that differs by pos only
+        trackDataFull = TrackData(pos=(2,2))
+        self.assertNotEqual(trackData, trackDataFull)
 
+        # Make the 2 equal
+        trackData.pos = (2,2)
+        self.assertEqual(trackData, trackDataFull)
+
+        # only gray_hist is different
+        trackDataFull.gray_hist = np.full((256,1), 2.5, dtype = np.float32)
+        self.assertNotEqual(trackData, trackDataFull)
+
+        # Set where only hsv_hist is different
+        trackDataFull.gray_hist = TrackData.generateEmptyHistogram()
+        trackDataFull.hsv_hist = np.full((128,256), 2, dtype = np.float32)
+        self.assertNotEqual(trackData, trackDataFull)
+
+        # change level
+        trackDataFull.hsv_hist = TrackData.generateEmptyHistogram(isGrayScale=False)
+        trackDataFull.level = np.float32(1.115)
+        self.assertNotEqual(trackData, trackDataFull)
+
+# ==================================================================================
 
 class TrackTest (unittest.TestCase):
 
@@ -32,6 +57,12 @@ class TrackTest (unittest.TestCase):
     # -----------------------------------------------------------------
     
     def test_add_tracks (self):
+
+        track = Track(historyCount=1)
+        # addTrack with no parms should add empty track
+        track.addTrack()
+        np.array_equal(track.history[0].gray_hist, TrackData.generateEmptyHistogram())
+        self.assertTrue(track.isEmpty())
 
         gray_hist_1 = np.full((256, 1), 4.0, dtype=np.float32)
         gray_hist_2 = np.full((256, 1), 8.0, dtype=np.float32)
@@ -71,7 +102,17 @@ class TrackTest (unittest.TestCase):
 
         track_item = track.getByIndex(1)
         self.assertTrue(track_item.isEmpty())
-        
+
+    # --------------------------------------------------------------------------------
+    
+    def test_get_level_sums (self):
+
+
+        track = Track(historyCount=2)
+        track.addTrack(TrackData(level=2.0))
+        track.addTrack(TrackData(level=2.5))
+        self.assertEqual(track.getLevelSums(), np.float32(4.5))
+
         
 # ===============================================================================
 
@@ -85,7 +126,6 @@ class ROITrackingTest (unittest.TestCase):
         self.assertEqual(roi.history_count, 15)
         self.assertTrue(roi.first_run)
         self.assertEqual(len(roi.tracks), 3)
-
      
     # --------------------------------------------------------------
     
