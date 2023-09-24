@@ -127,9 +127,8 @@ class ROITrackingTest (unittest.TestCase):
         self.assertEqual(sorted_rects.all(), exp_rects_list.all())
         self.assertEqual(sorted_levels.all(), exp_level_list.all())
 
-    # ----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------  
     
-    """
     def test_calculate_histograms (self):
 
         gray_frame = np.full((60, 60, 1), 2, dtype=np.uint8)
@@ -137,15 +136,18 @@ class ROITrackingTest (unittest.TestCase):
         rect_list = [(0,0,20,20), (20,20,20,20)]
 
         roi = ROITracking(maxTracks=2, historyCount=1)
-        incoming_hists = roi.calculateIncomingHistograms(gray_frame, rect_list)
-        incoming_hsv_hists = roi.calculateIncomingHSVHistograms(hsv_frame, rect_list)
+        incoming_hists = roi.calculateIncomingHistograms(grayFrame=gray_frame, hsvFrame=hsv_frame, rectList=rect_list)
+        #incoming_gray_hists = roi.calculateIncomingHistograms(gray_frame, rect_list)
+        #incoming_hsv_hists = roi.calculateIncomingHSVHistograms(hsv_frame, rect_list)
         self.assertEqual(len(incoming_hists), 2)
 
-        corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hsv_hists[0]], [incoming_hists[1]])
-        self.assertEqual(corr_index, 0)
+        
+
+        corr_index = roi.getCorrelationList([incoming_hists[0]], [incoming_hists[1]])
+        self.assertEqual(corr_index[0], 0)
 
     # ------------------------------------------------------------------------------
-    
+    """
     def test_process (self):
 
         frame = np.full((60, 60, 1), 2, dtype=np.uint8)

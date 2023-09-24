@@ -308,39 +308,33 @@ class ROITracking:
 
     # ------------------------------------------------------------------------------
     
-    def calculateIncomingHistograms (self, frame: np.ndarray, rectList) -> List[np.ndarray]:
+    def calculateIncomingHistograms (self, 
+                                     grayFrame: np.ndarray, 
+                                     hsvFrame: np.ndarray, 
+                                     rectList: Tuple[int,int,int,int]) -> List[TrackData]:
         """
-            Calculates the histograms for the incoming roi's
-            Returns a list of size maxTracks
+            Calculates the gray and hsv histograms for the incoming roi's
+            Returns a list of TrackData
         """
-        ret_hist_list = []
         max_index = min(self.max_tracks, len(rectList))
+        hist_list = []
+        
         for i in range(max_index):
             x, y, w, h = rectList[i]
-            roi = frame[y:y+h, x:x+w]
-            ret_hist_list.append(cv2.calcHist([roi], [0], None, [256], [0,256]))
+            gray_roi = grayFrame[y:y+h, x:x+w]
+            hsv_roi = hsvFrame[y:y+h, x:x+w]
 
-        return ret_hist_list
+            # Calculate the hsv hist and normalize
+            hsv_hist = cv2.calcHist([hsv_roi], [0,1], None, [180,256], [0, 180, 0, 256])
+            hsv_hist = cv2.normalize(hsv_hist, hsv_hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+
+            # Append a TrackData class to the return list
+            hist_list.append(TrackData(
+                grayHist=cv2.calcHist([gray_roi], [0], None, [256], [0,256]),
+                hsvHist=hsv_hist))
+            
+        return hist_list
     
-
-    # ----------------------------------------------------------------------------
-    
-    def calculateIncomingHSVHistograms (self, frame: np.ndarray, rectList):
-        """
-            Calculates the histograms of the incoming hsv roi's
-        """
-
-        ret_hsv_list = []
-        max_index = min(self.max_tracks, len(rectList))
-        for i in range(max_index):
-            x, y, w, h = rectList[i]
-            roi = frame[y:y+h, x:x+w]
-            hist = cv2.calcHist([roi], [0,1], None, [180,256], [0, 180, 0, 256])
-            cv2.normalize(hist, hist, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-            ret_hsv_list.append(hist)
-
-        return ret_hsv_list
-
     
     # -------------------------------------------------------------------------------
     
@@ -356,11 +350,51 @@ class ROITracking:
             ret_list.append(track_data if track_data else None)
         
         return ret_list
+
+
+     # ------------------------------------------------------------------------------------------
+    
+    def getCorrelationList (self, incomingTracks: List[TrackData],                            
+                            lastStoredTracks: List[TrackData]):
+        """
+            Returns a list the same size as the incoming rects (max = 3). Each element is either the index of the tracking
+            that corresponds or -1
+        """
+
+        incoming_len = len(incomingTracks)
+        stored_len = len(lastStoredTracks)
         
+        # Build a 2 dimensional array (incoming X tracks) filled with 0.0
+        gray_matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
+        
+        # for each object, compare the histograms of each last stored track histogram
+        for i in range(incoming_len):
+            for j in range(stored_len):
+                if not lastStoredTracks[j].isEmpty():
+                    combined_corr = cv2.compareHist(incomingTracks[i].gray_hist, lastStoredTracks[j].gray_hist, cv2.HISTCMP_CORREL)
+                    combined_corr += cv2.compareHist(incomingTracks[i].hsv_hist, lastStoredTracks[j].hsv_hist, cv2.HISTCMP_CORREL)
+                    gray_matrix[i,j] = combined_corr
+
+        # Build a single dimension array the size of the incoming histograms to store the index data. 
+        # Initialize each value to -1 (unset)
+        ret_list = np.full((incoming_len), -1, dtype=np.intp)
+        
+        # For the number of incoming iterations:
+        # 1. Get the max correletion as row,col
+        # 2. if above the minimum correlation threshold, set the value at row to col
+        # 3. Overwrite the column in the source matrix with -1.0, so it can't be used again 
+        for i in range(incoming_len):
+            row, col = np.unravel_index(np.argmax(gray_matrix), (incoming_len,stored_len))
+            if gray_matrix[row, col] > self.min_correlation_limit:     
+                ret_list[row] = col 
+            
+            gray_matrix[:, col] = np.full((incoming_len), -1)         
+
+        return ret_list    
     
     # ------------------------------------------------------------------------------------------
     
-    def getCorrelationList (self, incomingHistograms: List['np.ndarray[np.uint8]'], 
+    def getCorrelationList1 (self, incomingHistograms: List['np.ndarray[np.uint8]'], 
                             incomingHSVHistograms: List[np.ndarray],
                             lastStoredHistograms: List[Union[TrackData,None]]):
         """
