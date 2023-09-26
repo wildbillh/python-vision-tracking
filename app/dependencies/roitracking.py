@@ -14,8 +14,15 @@ class TrackData:
                  level: np.float32 = 0.0, pos: Tuple[int,int] = None):
         """
         """
-        self.gray_hist = grayHist if grayHist is not None else TrackData.generateEmptyHistogram()
-        self.hsv_hist = hsvHist if hsvHist is not None else TrackData.generateEmptyHistogram(isGrayScale=False)
+        if grayHist is None:
+            self.gray_hist = TrackData.generateEmptyHistogram()
+            self.hsv_hist = TrackData.generateEmptyHistogram(isGrayScale=False)
+            self.is_empty = True
+        else:
+            self.gray_hist = grayHist
+            self.hsv_hist = hsvHist
+            self.is_empty = False
+
         self.level = level
         self.pos = pos
     
@@ -25,18 +32,20 @@ class TrackData:
         """
             Determine if the TrackData instance is empty
         """
-
-        return self.gray_hist[0][0] == np.float32(-1.0)
+        return self.is_empty
     
     # ----------------------------------------------------------------------
 
     def __copy__(self):
         """
         """
-        return TrackData (grayHist=self.gray_hist.copy(),
+        track_data = TrackData (grayHist=self.gray_hist.copy(),
                         hsvHist=self.hsv_hist.copy(),
                         level=np.float32(self.level),
                         pos = tuple(self.pos) if self.pos is not None else None)
+        
+        track_data.is_empty = self.gray_hist[0][0] == np.float32(-1.0)
+        return track_data
 
     # ----------------------------------------------------------------------
 
@@ -85,50 +94,16 @@ class Track:
 
     def __init__(self, historyCount):
         """
+            Fill the Track with empty TrackData
         """
         self.history_count = historyCount
-        temp: List[TrackData] = []
-
-        for i in range(self.history_count):
-            temp.append(self.generateEmptyTrack())
-
-        self.history = np.array(temp, dtype=TrackData)    
-
-        """    
-        self.level_history = np.zeros((historyCount), dtype=np.float32)
-        self.gray_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
-        self.hsv_hist_history = np.full((historyCount, 256, 1), -1, dtype=np.float32)
-        """
+        self.history = np.full((historyCount), TrackData(), dtype=TrackData) 
+        self.non_empty_count = 0      
 
     # ----------------------------------------------------------------------
     
     def getByIndex (self, ind: int) -> TrackData:
         return self.history[ind]
-
-    # ----------------------------------------------------------------------------
-    
-    @staticmethod
-    def generateEmptyTrack():
-        """
-        """
-        return TrackData(
-                grayHist=Track.generateEmptyHistogram(),
-                hsvHist=Track.generateEmptyHistogram(isGrayScale=False),
-                level=np.float32(0.0), pos=None)
-
-    # -----------------------------------------------------------------------------
-    
-    @staticmethod
-    def generateEmptyHistogram (isGrayScale: bool = True):
-            """
-                Generate an empty histogram (all -1.0)
-            """
-
-            if isGrayScale:
-                return np.full((256, 1), -1.0, dtype=np.float32)
-            
-            return np.full((180, 256), -1.0, dtype=np.float32)
-        
     
     # ------------------------------------------------------------------------
 
@@ -140,7 +115,7 @@ class Track:
 
         insert_index = self.history_count - 1
         if trackData is None:
-            self.history[insert_index] = Track.generateEmptyTrack()
+            self.history[insert_index] = TrackData()
         else: 
             self.history[insert_index] = trackData  
 
@@ -160,12 +135,12 @@ class Track:
         ret_val = True
         for i in range (self.history_count):
             
-            if self.history[i] is not None and self.history[i].gray_hist[0][0] >= 0:
-                return (i, self.history[i])
-        
+            #if self.history[i] is not None and self.history[i].gray_hist[0][0] >= 0:
+            if self.history[i] is not None and not (self.history[i].isEmpty()):
+                return (i, self.history[i])   
+
         # if we get here the track is empty, so return the first TrackData object
         # and TrackData.isEmpty() will be true
-        #return (-1, self.history[0])
         return (-1, None)
 
     # --------------------------------------------------------------
@@ -219,7 +194,6 @@ class ROITracking:
         logger.info(f'process called levels: {level_list}')
 
 
-
         last_stored_histograms: List[TrackData] = self.getLatestHistograms()
         logger.info(f'last_stored_hist len: {len(last_stored_histograms)}')
         incoming_histograms: List[TrackData] = self.calculateIncomingHistograms (
@@ -248,7 +222,7 @@ class ROITracking:
                 track_data = TrackData(grayHist=incoming_histograms[i].gray_hist,
                                        hsvHist=incoming_histograms[i].hsv_hist,
                                        level=level_list[i])               
-                #self.addTrack(incoming_histograms[i], level_list[i], correlation_list[i])    
+               
                 self.addTrack(trackData=track_data, index=correlation_list[i])
                 track_indexes_to_write.remove(correlation_list[i])    
                 
@@ -279,7 +253,7 @@ class ROITracking:
             self.best_track_index = calculated_best
           
 
-        return (rect_list, level_list, self.best_track_index)
+        return (rect_list, level_list, correlation_list, self.best_track_index)
         
     # -------------------------------------------------------------------
     
@@ -368,15 +342,17 @@ class ROITracking:
         stored_len = len(lastStoredTracks)
         
         # Build a 2 dimensional array (incoming X tracks) filled with 0.0
-        gray_matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
+        matrix = np.zeros((incoming_len, stored_len), dtype=np.float32)
         
         # for each object, compare the histograms of each last stored track histogram
         for i in range(incoming_len):
             for j in range(stored_len):
                 if lastStoredTracks[j] is not None and not lastStoredTracks[j].isEmpty():
-                    combined_corr = cv2.compareHist(incomingTracks[i].gray_hist, lastStoredTracks[j].gray_hist, cv2.HISTCMP_CORREL)
-                    combined_corr += cv2.compareHist(incomingTracks[i].hsv_hist, lastStoredTracks[j].hsv_hist, cv2.HISTCMP_CORREL)
-                    gray_matrix[i,j] = combined_corr
+                    gray_corr = cv2.compareHist(incomingTracks[i].gray_hist, lastStoredTracks[j].gray_hist, cv2.HISTCMP_CORREL)
+                    hsv_corr = cv2.compareHist(incomingTracks[i].hsv_hist, lastStoredTracks[j].hsv_hist, cv2.HISTCMP_CORREL)
+                    combined_corr = gray_corr + hsv_corr
+                    #print(i, j, gray_corr, hsv_corr, combined_corr, flush=True)
+                    matrix[i,j] = combined_corr
 
         # Build a single dimension array the size of the incoming histograms to store the index data. 
         # Initialize each value to -1 (unset)
@@ -386,14 +362,90 @@ class ROITracking:
         # 1. Get the max correletion as row,col
         # 2. if above the minimum correlation threshold, set the value at row to col
         # 3. Overwrite the column in the source matrix with -1.0, so it can't be used again 
+        
+        print(matrix, flush=True)
         for i in range(incoming_len):
-            row, col = np.unravel_index(np.argmax(gray_matrix), (incoming_len,stored_len))
-            if gray_matrix[row, col] > self.min_correlation_limit:     
+            row, col = np.unravel_index(np.argmax(matrix), (incoming_len,stored_len))
+            print("row/col", row, col, flush=True)
+            if matrix[row, col] > self.min_correlation_limit:     
                 ret_list[row] = col 
-            
-            gray_matrix[:, col] = np.full((incoming_len), -1)         
+            print("ret_list", ret_list, flush=True)
+            matrix[:, col] = np.full((incoming_len), -1) 
+            matrix[row, :] = np.full((stored_len), -1) 
+
+            print(matrix, flush=True)        
 
         return ret_list    
+    
+    # ----------------------------------------------------------------------------------------
+    @staticmethod
+    def doRectanglesOverlap(rect1: Tuple[int, int, int, int], rect2: Tuple[int, int, int, int]):
+        """
+            When given 2 rectangles in the format (x1, y1, w, h), deterimine if the 2 rectangles overlap 
+        """
+
+        # convert into x and y coords
+        r1x1 = rect1[0]
+        r1y1 = rect1[1]
+        r1x2 = r1x1 + rect1[2]
+        r1y2 = r1y1 + rect1[3]
+
+        r2x1 = rect2[0]
+        r2y1 = rect2[1]
+        r2x2 = r2x1 + rect2[2]
+        r2y2 = r2y1 + rect2[3]
+   
+        # If one of the rectangles is to the the left of the other
+        if r1x1 > r2x2 or r2x1 > r1x2:
+            return False, None
+ 
+        #If one rectangle is above other
+        if r1y1 > r2y2 or r2y1 > r1y2:
+            return False, None
+    
+        # if either rectangle has no area return False
+        if r1x1 == r1x2 or r1y1 == r1y2 or r2x1 == r2x2 or r2y1 == r2y2:
+            return False, None
+ 
+        # Find the bigger of the two
+        if ((r1x2 - r1x1) * (r1y2 - r1y1)) > ((r2x2 - r2x1) * (r2y2 - r2y1)):
+            return (True, rect1)
+    
+        return (True, rect2)
+
+    @staticmethod
+    def transformOverlappingROIS (rects, levels, threshold: float):
+        """
+        """
+        rect_list = []
+        levels_list = []
+        combined_indexes = []
+
+        # If the level falls below the threshold, we ignore it's rect and level
+        for i in range(len(levels)):
+            if levels[i] < threshold:
+                combined_indexes.append(i)           
+
+        rect_tuple = None
+
+        for i in range (len(levels)):
+            is_overlap = False
+            for j in range (len(levels)):
+                if i == j or i in combined_indexes or j in combined_indexes:
+                    continue
+                is_overlap, bigger_rect = ROITracking.doRectanglesOverlap(rects[i], rects[j])
+                if is_overlap:
+                    rect_list.append(bigger_rect)
+                    levels_list.append(levels[i] + levels[j])
+                    combined_indexes.append(i)
+                    combined_indexes.append(j)
+                    break
+            if not is_overlap and not i in combined_indexes:
+                rect_list.append(rects[i])
+                levels_list.append(levels[i])
+
+
+        return (rect_list, levels_list)
     
    
 

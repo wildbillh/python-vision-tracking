@@ -82,8 +82,8 @@ class KBMiddleMan (ThreadedMiddleMan):
             #logger.info(f'{objects}, {levels}')
             #logger.info(f'{rect_list}, {levels_list}')
 
-            rect_list, levels_list, best_track = self.roi_tracking.process(processFrame=process_frame, hsvFrame=hsv_frame, rects=rect_list, levels=levels_list)
-            logger.info(f'rect: {rect_list}, levels: {levels_list}, best track: {best_track}')
+            rect_list, levels_list, tracks, best_track = self.roi_tracking.process(processFrame=process_frame, hsvFrame=hsv_frame, rects=rect_list, levels=levels_list)
+            logger.info(f'rect: {rect_list}, levels: {levels_list}, tracks: {tracks}, best track: {best_track}')
 
             object = None
 
@@ -115,7 +115,10 @@ class KBMiddleMan (ThreadedMiddleMan):
 
                     roi = process_frame[y:y+h, x:x+w]
                     
-                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3)               
+                    frame = cv2.rectangle(frame, (x, y), (x + w, y + h), color, 3) 
+                    frame = cv2.putText(frame, str(tracks[i]), (x,y-30),
+                                        cv2.FONT_ITALIC, 1.0, color,
+                                        thickness = 3, lineType=cv2.FILLED, bottomLeftOrigin=False)              
                     
         else:
             # Track number of frames with no hits
