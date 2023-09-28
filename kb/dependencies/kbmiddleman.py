@@ -74,15 +74,16 @@ class KBMiddleMan (ThreadedMiddleMan):
 
         best_track = 0
 
+        logger.debug(f'\n============ frame={props["frame"]} ==========\n')
+
         # if the classifier found any roi's and levels
         if isinstance(levels, np.ndarray):
-            logger.info(f'============ frame={props["frame"]} ==========')
 
-            rect_list, levels_list = transformOverlappingROIS(objects, levels, threshold = 0.0)
+            #rect_list, levels_list = ROITracking.transformOverlappingROIS(objects, levels, threshold = 0.0)
             #logger.info(f'{objects}, {levels}')
             #logger.info(f'{rect_list}, {levels_list}')
 
-            rect_list, levels_list, tracks, best_track = self.roi_tracking.process(processFrame=process_frame, hsvFrame=hsv_frame, rects=rect_list, levels=levels_list)
+            rect_list, levels_list, tracks, best_track = self.roi_tracking.process(processFrame=process_frame, hsvFrame=hsv_frame, rects=objects, levels=levels)
             logger.info(f'rect: {rect_list}, levels: {levels_list}, tracks: {tracks}, best track: {best_track}')
 
             object = None

@@ -27,11 +27,21 @@ class ROITracking:
             best three roi's and store them in a circular buffer.
         """
 
+        # Get list sorted by best levels first
         # Figure out the how much data to process
         max_index = min(self.max_tracks, len(levels))
+        sorted_rects, sorted_levels = self.sort(rects, levels, max_index)
+        
+        rect_list, level_list = ROITracking.transformOverlappingROIS(sorted_rects, sorted_levels, threshold = 1.0)
+        if len(rect_list) < len(levels):
+            logger.debug(f'before transform:\n{sorted_rects}\n{sorted_levels}')
+            logger.debug(f'after transform:\n {rect_list}\n{level_list}')
+        
+        # Figure out the how much data to process
+        max_index = min(self.max_tracks, len(level_list))
 
         # Get list sorted by best levels first
-        rect_list, level_list = self.sort(rects, levels, max_index)
+        #rect_list, level_list = self.sort(transformed_rects, transformed_levels, max_index)
 
         object_count = len(level_list)
 
@@ -257,10 +267,15 @@ class ROITracking:
     
         return (True, rect2)
 
+    # ------------------------------------------------------------------------
+
     @staticmethod
-    def transformOverlappingROIS (rects, levels, threshold: float):
+    def transformOverlappingROIS (rects: List[List[int]], levels: List[np.float32], threshold: float):
         """
+            Assuming the rectangles are provided in level order, 
+            return the overlapping rect with the highest level
         """
+        
         rect_list = []
         levels_list = []
         combined_indexes = []
@@ -268,22 +283,29 @@ class ROITracking:
         # If the level falls below the threshold, we ignore it's rect and level
         for i in range(len(levels)):
             if levels[i] < threshold:
-                combined_indexes.append(i)           
-
-        rect_tuple = None
+                combined_indexes.append(i)                
 
         for i in range (len(levels)):
             is_overlap = False
             for j in range (len(levels)):
+                # If the indexes are equal i==j or it's in the combined list ignore
                 if i == j or i in combined_indexes or j in combined_indexes:
                     continue
                 is_overlap, bigger_rect = ROITracking.doRectanglesOverlap(rects[i], rects[j])
+                
                 if is_overlap:
-                    rect_list.append(bigger_rect)
-                    levels_list.append(levels[i] + levels[j])
-                    combined_indexes.append(i)
-                    combined_indexes.append(j)
+                    # Theres an overlap so add the one with the max index (lowest level)
+                    # to the combined_list
+                    least_rect_index = max(i,j)
+                    combined_indexes.append(max(i,j))
+                    
+                    # if the i index is not the lower value, append it
+                    if i != least_rect_index:
+                        rect_list.append(rects[i])
+                        levels_list.append(levels[i])
+                        
                     break
+
             if not is_overlap and not i in combined_indexes:
                 rect_list.append(rects[i])
                 levels_list.append(levels[i])

@@ -77,15 +77,22 @@ class ROITrackingTest (unittest.TestCase):
 
         frame = np.full((60, 60, 1), 2, dtype=np.uint8)
         hsv_frame = np.full((60, 60, 3), 2, dtype=np.uint8)
-        rect_list = [(0,0,20,20), (20,20,20,20)]
+        rect_list = [(0,0,20,20), (18,18,20,20)]
 
         roi = ROITracking(maxTracks=3, historyCount=2)
         roi.process(processFrame=frame, hsvFrame=hsv_frame, rects=rect_list, levels=[4.0, 2.0])
 
         self.assertFalse(roi.tracks[0].isEmpty())
-        self.assertFalse(roi.tracks[1].isEmpty())
+        self.assertTrue(roi.tracks[1].isEmpty())
         self.assertTrue(roi.tracks[2].isEmpty())
 
 
+    def test_transform_overlapping_rois (self):
 
-        
+
+        rects = [ [287, 346,  62,  62],[242, 368,  55,  55],[306, 294,  70,  70] ]
+        levels = [5.22518613, 3.72329403, 1.05215884]
+        print('before transform\n', rects, levels)
+
+        r, l = ROITracking.transformOverlappingROIS(rects, levels, 1.0)
+        print('after transform\n', r, l, flush=True)
