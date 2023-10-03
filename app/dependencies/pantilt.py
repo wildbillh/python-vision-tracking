@@ -59,13 +59,16 @@ class PanTilt (USBServoController):
         speeds = [self.getSpeed(self.pan), self.getSpeed(self.tilt)]
         props = [self.getServoProperties(self.pan), self.getServoProperties(self.tilt)]
 
+
+        self.enable(PanTilt.ALL)
         # Set to a slower speed
         self.setSpeed(self.pan, 30)
         self.setSpeed(self.tilt, 30)
 
+        
         # Return to home
-        self.setPositionSync(self.pan, props[0].home)
-        self.setPositionSync(self.tilt, props[1].home)
+        self.returnToHome(servo=PanTilt.ALL, sync=False)
+        time.sleep(0.01)
 
         # Simultaneously drive each to the min position
         self.setPosition(self.pan, props[0].min)
@@ -85,33 +88,12 @@ class PanTilt (USBServoController):
         # Reset the speed to the original value
         self.setSpeed(self.pan, speeds[0])
         self.setSpeed(self.tilt, speeds[1])
+        self.returnToHome(servo=PanTilt.ALL, sync=True)
 
         
-
-        """
-        # For each channel, enable the servo and move to the min, max and home positions
-        for i, channel in enumerate(self.servos):
-
-            speed = self.controller_props["speed"]
-           
-            # Set a slow speed to run through the min and max
-            self.setSpeed(channel, 40)
-            
-            if self.servo_attrs["disabled"]:
-                self.setEnabled(channel)
-            
-            # Go to the min, max and home positions
-            self.setPositionSync(channel, self.controller_props["min"])
-            self.setPositionSync(channel, self.controller_props["max"])
-            self.returnToHome(channel)
-
-            # Set the speed to the correct property value
-            self.setSpeed(channel, speed)      
-    
-        """
     # -------------------------------------------------------------------------------------
 
-    def returnToHome (self, servo: int):
+    def returnToHome (self, servo: int, sync = False):
         """
             Return to the defined neutral position
         """
@@ -123,7 +105,7 @@ class PanTilt (USBServoController):
             else [servo]
           
         for i, which_servo in enumerate(servo_list):
-            super().returnToHome(which_servo)
+            super().returnToHome(which_servo, sync)
             
      
 

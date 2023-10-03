@@ -75,7 +75,7 @@ class USBServoController:
         return self.servo_props[channel]
 
     # ------------------------------------------------------------
-    
+
 
     def setServoProperties (self, channel: int, props: dict = {}):
 
@@ -241,11 +241,15 @@ class USBServoController:
 
      # -------------------------------------------------------------------------------------
 
-    def returnToHome (self, channel: int):
+    def returnToHome (self, channel: int, sync = False):
         """
             Return to the defined neutral position
         """
                          
-        pos = self.servo_props[channel].home   
-        self.setPositionSync(channel, pos)
+        pos = self.servo_props[channel].home  
+        if sync: 
+            self.setPositionSync(channel, pos)
+        else:
+            self.setPosition(channel, pos)
+
      
