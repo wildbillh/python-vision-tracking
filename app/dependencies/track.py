@@ -10,7 +10,7 @@ class TrackData:
     """
 
     def __init__(self, grayHist: np.ndarray = None, hsvHist: np.ndarray = None, 
-                 level: np.float32 = 0.0, pos: Tuple[int,int] = None):
+                 level: np.float32 = 0.0, rect: np.ndarray = None, pos: Tuple[int,int] = None):
         """
         """
         if grayHist is None:
@@ -23,6 +23,7 @@ class TrackData:
             self.is_empty = False
 
         self.level = level
+        self.rect = rect
         self.pos = pos
     
     # -----------------------------------------------------------------------

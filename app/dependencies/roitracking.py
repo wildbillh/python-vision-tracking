@@ -34,8 +34,8 @@ class ROITracking:
         
         rect_list, level_list = ROITracking.transformOverlappingROIS(sorted_rects, sorted_levels, threshold = 1.0)
         if len(rect_list) < len(levels):
-            logger.debug(f'before transform:\n{sorted_rects}\n{sorted_levels}')
-            logger.debug(f'after transform:\n {rect_list}\n{level_list}')
+            logger.debug(f'Overlap eliminates {len(levels) -len(sorted_rects)} rois')
+            
         
         # Figure out the how much data to process
         max_index = min(self.max_tracks, len(level_list))
@@ -44,12 +44,11 @@ class ROITracking:
         #rect_list, level_list = self.sort(transformed_rects, transformed_levels, max_index)
 
         object_count = len(level_list)
-
-        logger.info(f'process called levels: {level_list}')
+        logger.debug(f'levels: {level_list}\nrects: {rect_list}')
+        
 
 
         last_stored_histograms: List[TrackData] = self.getLatestHistograms()
-        logger.info(f'last_stored_hist len: {len(last_stored_histograms)}')
         incoming_histograms: List[TrackData] = self.calculateIncomingHistograms (
             grayFrame=processFrame, 
             hsvFrame=hsvFrame,
@@ -60,7 +59,7 @@ class ROITracking:
                                                     lastStoredTracks = last_stored_histograms,
                                                     )
         
-        logger.info(f'correlation list: {correlation_list}')
+        logger.debug(f'correlation list: {correlation_list}')
 
         # Get the indexes of any tracks that have no data
         empty_tracks_indexes = [i for i in range(self.max_tracks) if last_stored_histograms[i] is None]
@@ -99,7 +98,7 @@ class ROITracking:
 
         #track_level_sums = [np.sum(self.levels_track_list[i]) for i in range(self.max_tracks)]
         track_level_sums = [self.tracks[i].getLevelSums() for i in range(self.max_tracks)]
-        logger.info(f'level_sums: {track_level_sums}')
+        logger.debug(f'level_sums: {track_level_sums}')
 
         calculated_best = np.argmax(track_level_sums)
         if self.best_track_index != calculated_best:
@@ -217,18 +216,16 @@ class ROITracking:
         # 2. if above the minimum correlation threshold, set the value at row to col
         # 3. Overwrite the row and column in the source matrix with -1.0, so it can't be used again 
         
-        print(matrix, flush=True)
+       
         for i in range(incoming_len):
             row, col = np.unravel_index(np.argmax(matrix), (incoming_len,stored_len))
-            print("row/col", row, col, flush=True)
+            
             if matrix[row, col] > self.min_correlation_limit:     
                 ret_list[row] = col 
-            print("ret_list", ret_list, flush=True)
+           
             matrix[:, col] = np.full((incoming_len), -1) 
             matrix[row, :] = np.full((stored_len), -1) 
-
-            print(matrix, flush=True)        
-
+     
         return ret_list    
     
     # ----------------------------------------------------------------------------------------
