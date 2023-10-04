@@ -114,7 +114,11 @@ class USBServoController:
         """
             Close the port 
         """
-        if hasattr(self, "port") and self.port is not None:
+        if hasattr(self, "port") and self.port is not None and self.port.is_open:
+            for i in range(USBServoController.MAX_SERVOS):
+                if not self.servo_props[i].disabled:
+                    self.setDisabled(channel=i)
+
             self.port.close()
             self.port = None
 
@@ -179,6 +183,7 @@ class USBServoController:
             Sets the microseconds for the designated channel 
         """
         
+        
         quarter_ms = microSeconds * 4
         message = bytearray([0x84, channel, quarter_ms & 0x7F, (quarter_ms >> 7) & 0x7F])
         
@@ -224,7 +229,7 @@ class USBServoController:
         """
             Disable the servo and store the last position
         """
-
+        
         self.setPosition(channel, 0)
         self.servo_props[channel].disabled = True
     
@@ -234,7 +239,7 @@ class USBServoController:
         """
             Enable the servo and set a position
         """
-
+        
         self.setPosition (channel, self.servo_props[channel].pos)
         self.servo_props[channel].disabled = False
         self.setSpeed(channel, self.servo_props[channel].speed)

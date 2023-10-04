@@ -64,16 +64,12 @@ class PanTilt (USBServoController):
         # Set to a slower speed
         self.setSpeed(self.pan, 30)
         self.setSpeed(self.tilt, 30)
-
-        
-        # Return to home
-        self.returnToHome(servo=PanTilt.ALL, sync=False)
         time.sleep(0.01)
 
         # Simultaneously drive each to the min position
         self.setPosition(self.pan, props[0].min)
         self.setPosition(self.tilt, props[1].min)
-        time.sleep(1.5)
+        time.sleep(1.0)
 
         # Likewise to the max position
         self.setPosition(self.pan, props[0].max)
@@ -117,11 +113,11 @@ class PanTilt (USBServoController):
         if servo not in PanTilt.VALID_SERVOS:
             raise Exception (f'{servo} is not a valid servo. Only {PanTilt.VALID_SERVOS} allowed')
 
-        servo_list = [PanTilt.PAN, PanTilt.TILT] if servo == PanTilt.ALL \
+        servo_list = [self.pan, self.tilt] if servo == PanTilt.ALL \
             else [servo]
 
-        for i, which_servo in enumerate(servo_list):
-            super().setDisabled(self.servos[which_servo])
+        for channel in servo_list:
+            super().setDisabled(channel)
 
     # ---------------------------------------------------------------------------------------
 
@@ -133,8 +129,8 @@ class PanTilt (USBServoController):
         if servo not in PanTilt.VALID_SERVOS:
             raise Exception (f'{servo} is not a valid servo. Only {PanTilt.VALID_SERVOS} allowed')
         
-        servo_list = [PanTilt.PAN, PanTilt.TILT] if servo == PanTilt.ALL \
-            else [servo]
+        servo_list = [self.pan, self.tilt] if servo == PanTilt.ALL \
+            else [self.servos[servo]]
 
-        for i, which_servo in enumerate(servo_list):
-            super().setEnabled(self.servos[which_servo])
+        for channel in servo_list:
+            super().setEnabled(channel)
