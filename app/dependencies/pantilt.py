@@ -1,5 +1,5 @@
 import logging, time
-from typing import Dict
+from typing import Dict, List, Union
 from app.dependencies.usbservocontroller import USBServoController
 
 logger = logging.getLogger()
@@ -33,6 +33,7 @@ class PanTilt (USBServoController):
 
     def open (self, port: str, rate: int = 115200, panProps: Dict = {}, tiltProps: Dict = {}):
         """
+            Open the serial port and set the pan and tilt servo properties
         """
 
         # Attempt to open the port
@@ -56,59 +57,82 @@ class PanTilt (USBServoController):
             raise Exception ("Initialize call on unopen serial port")
         
 
+        # Capture the speed of each servo so we can reset after the initialization
         speeds = [self.getSpeed(self.pan), self.getSpeed(self.tilt)]
         props = [self.getServoProperties(self.pan), self.getServoProperties(self.tilt)]
 
-
         self.enable(PanTilt.ALL)
         # Set to a slower speed
-        self.setSpeed(self.pan, 30)
-        self.setSpeed(self.tilt, 30)
-        time.sleep(0.01)
+        self.setSpeed(panSpeed=30, tiltSpeed=30, sync=True)
 
         # Simultaneously drive each to the min position
-        self.setPosition(self.pan, props[0].min)
-        self.setPosition(self.tilt, props[1].min)
-        time.sleep(1.0)
-
+        super().setPositionMultiSync(infoList=[(self.pan, props[0].min), (self.tilt, props[1].min)])
+        
         # Likewise to the max position
-        self.setPosition(self.pan, props[0].max)
-        self.setPosition(self.tilt, props[1].max)
-        time.sleep(1.5)
-
+        super().setPositionMultiSync(infoList=[(self.pan, props[0].max), (self.tilt, props[1].max)])
+        
         # Return to home
-        self.setPosition(self.pan, props[0].home)
-        self.setPosition(self.tilt, props[1].home)
-        time.sleep(1.5)
-
-        # Reset the speed to the original value
-        self.setSpeed(self.pan, speeds[0])
-        self.setSpeed(self.tilt, speeds[1])
         self.returnToHome(servo=PanTilt.ALL, sync=True)
 
+        # Reset the speed to the original value
+        self.setSpeed(panSpeed=speeds[0], tiltSpeed=speeds[1])
         
+        self.returnToHome(servo=PanTilt.ALL, sync=False)
+
+     # -------------------------------------------------------------------------------------   
+
+    def setPosition (self, panPos: Union[int, None] = None, tiltPos: Union[int, None] = None) -> List[Union[int, None]]:
+        """
+            Sets the position of the pan and tilt servos
+        """
+
+        if not panPos and not tiltPos:
+            return [None, None]
+        
+        # Build the position parameters
+        pos_parms = [(self.pan, panPos) if panPos else None, (self.tilt, tiltPos) if tiltPos else None]
+        
+        return super().setPositionMulti(infoList=pos_parms)
+
+    # -------------------------------------------------------------------------------------
+    
+    def setSpeed(self, panSpeed: Union[int, None] = None, tiltSpeed: Union[int, None] = None, sync = False) -> None:
+        """
+            Set the speed of the designated servo
+        """
+        if not panSpeed and not tiltSpeed:
+            return
+        
+        speed_parms = [(self.pan, panSpeed) if panSpeed else None, (self.tilt, tiltSpeed) if tiltSpeed else None]
+        super().setSpeedMulti(infoList=speed_parms, sync=sync)
+
     # -------------------------------------------------------------------------------------
 
-    def returnToHome (self, servo: int, sync = False):
+    def returnToHome (self, servo: int, sync = False, timeout = 2):
         """
             Return to the defined neutral position
         """
 
         if servo not in PanTilt.VALID_SERVOS:
             raise Exception (f'{servo} is not a valid servo. Only {PanTilt.VALID_SERVOS} allowed')
-          
-        servo_list = [PanTilt.PAN, PanTilt.TILT] if servo == PanTilt.ALL \
-            else [servo]
-          
-        for i, which_servo in enumerate(servo_list):
-            super().returnToHome(which_servo, sync)
-            
-     
+        
+        # Build the parameter list with the designated servos
+        if servo == PanTilt.ALL:
+            info_list = [self.pan, self.tilt] 
+        elif servo == PanTilt.PAN:
+            info_list = [self.pan, None]
+        else:
+            info_list = [None, self.tilt]
+
+        if sync:
+            super().returnToHomeMulti(channelList=info_list, sync=sync, timeout=timeout)
 
     # ---------------------------------------------------------------------------------------
 
-
     def disable (self, servo):
+        """
+            Disable the servo(s)
+        """
 
         if servo not in PanTilt.VALID_SERVOS:
             raise Exception (f'{servo} is not a valid servo. Only {PanTilt.VALID_SERVOS} allowed')
@@ -117,7 +141,7 @@ class PanTilt (USBServoController):
             else [servo]
 
         for channel in servo_list:
-            super().setDisabled(channel)
+            super().setDisabled(channel=channel)
 
     # ---------------------------------------------------------------------------------------
 
@@ -133,4 +157,4 @@ class PanTilt (USBServoController):
             else [self.servos[servo]]
 
         for channel in servo_list:
-            super().setEnabled(channel)
+            super().setEnabled(channel=channel)
