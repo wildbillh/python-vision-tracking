@@ -1,6 +1,6 @@
 
 from typing import List, Tuple, Union
-import logging, serial, time
+import logging, math, serial, time
 from collections.abc import Iterable
 
 logger = logging.getLogger()
@@ -11,7 +11,7 @@ class ServoProperties:
         Class used the hold the properties for each servo
     """
 
-    def __init__(self):
+    def __init__(self, rangeDegrees = 90):
         """
             Class which holds the property values for a single servo
         """
@@ -21,7 +21,10 @@ class ServoProperties:
         self.pos = 1500
         self.speed = 200
         self.acceleration = 0
+        
         self.disabled = True
+        self.microseconds_per_degree = (self.max - self.min) / rangeDegrees
+        self.microseconds_rer_radian =  self.microseconds_per_degree * (180 / math.pi)
 
     # --------------------------------------------------------------
 
@@ -45,6 +48,10 @@ class USBServoController:
 
     MAX_SERVOS = 6
     RATE = 115200
+    MICROSECONDS = 0
+    RADIANS = 1
+    DEGREES = 2
+
 
     # -------------------------------------------------------------
     #  
@@ -56,6 +63,8 @@ class USBServoController:
         self.port = None
         self.servo_props: dict = []
 
+
+    
         # Set the default servo properties
         for i in range(USBServoController.MAX_SERVOS):
             self.servo_props.append(ServoProperties())     
@@ -182,16 +191,16 @@ class USBServoController:
                 USBServoController.setSpeed(self, channel=info[0], val=info[1])
                 # If sync is true, call setPositionSync on the current pos to make sure the speed takes
                 if sync:    
-                    USBServoController.setPositionSync(self, channel=info[0], microSeconds=self.servo_props[info[0]].pos)
+                    USBServoController.setPositionSync(self, channel=info[0], val=self.servo_props[info[0]].pos)
 
     # ---------------------------------------------------------------------------------------
 
-    def setPosition (self, channel: int, microSeconds: int) -> int:
+    def setPosition (self, channel: int, val: int, units = 0) -> int:
         """
             Sets the microseconds for the designated channel 
         """
         
-        new_pos = microSeconds
+        new_pos = val
 
         # if the desired position is less than min or greater than max, use those values instead.     
         if new_pos != 0:
@@ -216,13 +225,13 @@ class USBServoController:
 
     # --------------------------------------------------------------------------------------
 
-    def setPositionSync (self, channel: int, microSeconds: int, timeout:int = 2) -> None:
+    def setPositionSync (self, channel: int, val: int, timeout:int = 2) -> None:
         """
             Sets the position but doesn't return until the position is acheived or a timeout occurs
         """
         start = time.monotonic()
-        USBServoController.setPosition(self, channel=channel, microSeconds=microSeconds)
-        while USBServoController.getPositionFromController(self, channel=channel) != microSeconds:
+        USBServoController.setPosition(self, channel=channel, val=val)
+        while USBServoController.getPositionFromController(self, channel=channel) != val:
             time.sleep(0.004)
             if (time.monotonic() - start) > timeout:
                 logger.warning("Timeout occured before setPositionSync() function completed")
@@ -238,12 +247,12 @@ class USBServoController:
         """
 
         if not isinstance(infoList, Iterable):
-            return USBServoController.setPosition(self, channel=infoList[0], microSeconds=infoList[1])
+            return USBServoController.setPosition(self, channel=infoList[0], val=infoList[1])
         
         ret_pos_list = []
         for info in infoList:
             if info:
-                ret_pos_list.append(USBServoController.setPosition(self, channel=info[0], microSeconds=info[1]))
+                ret_pos_list.append(USBServoController.setPosition(self, channel=info[0], val=info[1]))
             else:
                 ret_pos_list.append(None)
 
@@ -267,7 +276,7 @@ class USBServoController:
             if not info:
                 completed_list[i] = True
             else:
-                USBServoController.setPosition(self, channel=info[0], microSeconds=info[1])    
+                USBServoController.setPosition(self, channel=info[0], val=info[1])    
 
         # Set up a timer start
         start = time.monotonic()
@@ -324,7 +333,7 @@ class USBServoController:
             Disable the servo and store the last position
         """
         
-        USBServoController.setPosition(self, channel=channel, microSeconds=0)
+        USBServoController.setPosition(self, channel=channel, val=0)
         self.servo_props[channel].disabled = True
     
     # ---------------------------------------------------------------------------------------
@@ -334,7 +343,7 @@ class USBServoController:
             Enable the servo and set a position
         """
         
-        USBServoController.setPosition (self, channel=channel, microSeconds=self.servo_props[channel].pos)
+        USBServoController.setPosition (self, channel=channel, val=self.servo_props[channel].pos)
         self.servo_props[channel].disabled = False
         USBServoController.setSpeed(self, channel=channel, val=self.servo_props[channel].speed)
 
@@ -347,9 +356,9 @@ class USBServoController:
                          
         pos = self.servo_props[channel].home  
         if sync: 
-            return USBServoController.setPositionSync(self, channel=channel, microSeconds=pos, timeout=timeout)
+            return USBServoController.setPositionSync(self, channel=channel, val=pos, timeout=timeout)
         else:
-            return USBServoController.setPosition(self, channel=channel, microSeconds=pos)
+            return USBServoController.setPosition(self, channel=channel, val=pos)
 
     # --------------------------------------------------------------------------------------
     
