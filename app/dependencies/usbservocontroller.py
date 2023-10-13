@@ -1,5 +1,5 @@
 
-from typing import List, Tuple, Union
+from typing import Dict, List, Tuple, Union
 import logging, math, serial, time
 from collections.abc import Iterable
 
@@ -21,14 +21,15 @@ class ServoProperties:
         self.pos = 1500
         self.speed = 200
         self.acceleration = 0
+        self.range_degrees = rangeDegrees
         
         self.disabled = True
         self.microseconds_per_degree = (self.max - self.min) / rangeDegrees
-        self.microseconds_rer_radian =  self.microseconds_per_degree * (180 / math.pi)
+        self.microseconds_per_radian =  self.microseconds_per_degree * (180 / math.pi)
 
     # --------------------------------------------------------------
 
-    def setFromDict (self, propertyDict: dict):
+    def setFromDict (self, propertyDict: Dict) -> None:
         """
             Sets the individual variables from a full or partial dictionary
         """
@@ -38,7 +39,10 @@ class ServoProperties:
                 setattr(self, key, val)
             else:
                 logger.warning(f'Attempt to set unknown property {key} in {self.__class__.__name__}')
- 
+
+        self.microseconds_per_degree = (self.max - self.min) / self.range_degrees
+        self.microseconds_per_radian =  self.microseconds_per_degree * (180 / math.pi)
+
  # ================================================================
 
 class USBServoController:
@@ -296,6 +300,27 @@ class USBServoController:
 
         return ret_pos_list
 
+
+    # ------------------------------------------------------------------------------------------------
+    
+    def setRelativePos (self, channel: int, val: float, units = 2, sync=False):
+        """
+        """
+
+        diff_ms = 0
+
+        if units == USBServoController.MICROSECONDS:
+            diff_ms = int(val)
+        elif units == USBServoController.RADIANS:
+            diff_ms = int(val * self.servo_props[channel].microseconds_per_radian)
+        else:
+            diff_ms = int(val * self.servo_props[channel].microseconds_per_degree)
+
+        if sync:
+            USBServoController.setPositionSync(self, channel, self.servo_props[channel].pos + diff_ms)  
+        else:
+            USBServoController.setPosition(self, channel, self.servo_props[channel].pos + diff_ms)   
+
     # -------------------------------------------------------------------------------    
 
     def getPosition (self, channel: int) -> int:
@@ -342,10 +367,10 @@ class USBServoController:
         """
             Enable the servo and set a position
         """
-        
+        USBServoController.setSpeed(self, channel=channel, val=self.servo_props[channel].speed)
         USBServoController.setPosition (self, channel=channel, val=self.servo_props[channel].pos)
         self.servo_props[channel].disabled = False
-        USBServoController.setSpeed(self, channel=channel, val=self.servo_props[channel].speed)
+        
 
      # -------------------------------------------------------------------------------------
 

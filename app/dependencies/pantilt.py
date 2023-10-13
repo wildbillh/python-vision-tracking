@@ -60,10 +60,13 @@ class PanTilt (USBServoController):
         # Capture the speed of each servo so we can reset after the initialization
         speeds = [self.getSpeed(self.pan), self.getSpeed(self.tilt)]
         props = [self.getServoProperties(self.pan), self.getServoProperties(self.tilt)]
-
-        self.enable(PanTilt.ALL)
-        # Set to a slower speed
+        
+        # Set to a slower speed and enable the servos
         self.setSpeed(panSpeed=30, tiltSpeed=30, sync=True)
+        self.enable(PanTilt.ALL)
+        
+        # Return to home
+        self.returnToHome(servo=PanTilt.ALL, sync=True)
 
         # Simultaneously drive each to the min position
         super().setPositionMultiSync(infoList=[(self.pan, props[0].min), (self.tilt, props[1].min)])
@@ -94,6 +97,19 @@ class PanTilt (USBServoController):
         
         return super().setPositionMulti(infoList=pos_parms)
 
+    
+    
+    def setRelativePos (self, panPos: float = None, tiltPos: float = None, units = 2, sync=False):
+        """
+            Sets the position of the specified servo to: (current position + val)
+            Val can be positive or negative. 
+        """
+        if panPos is not None:
+            super().setRelativePos(channel=self.pan, val=panPos, units=units, sync=sync)
+        
+        if tiltPos is not None:
+            super().setRelativePos(channel=self.tilt, val=tiltPos, units=units, sync=sync)
+    
     # -------------------------------------------------------------------------------------
     
     def setSpeed(self, panSpeed: Union[int, None] = None, tiltSpeed: Union[int, None] = None, sync = False) -> None:
@@ -129,7 +145,7 @@ class PanTilt (USBServoController):
 
     # ---------------------------------------------------------------------------------------
 
-    def disable (self, servo):
+    def disable (self, servo: int):
         """
             Disable the servo(s)
         """
@@ -145,7 +161,7 @@ class PanTilt (USBServoController):
 
     # ---------------------------------------------------------------------------------------
 
-    def enable (self, servo):
+    def enable (self, servo: int):
         """
             Enable the designated servo's
         """
@@ -158,3 +174,15 @@ class PanTilt (USBServoController):
 
         for channel in servo_list:
             super().setEnabled(channel=channel)
+
+    # ----------------------------------------------------------------------------------------
+    
+    def setServoProperties (self, panProps: dict = {}, tiltProps: Dict = {}) -> None:
+        """
+            Sets the servo properties from one or more property dictionaries.
+        """
+
+        if panProps:
+            super().setServoProperties(self.pan, panProps)
+        if tiltProps:
+            super().setServoProperties(self.tilt, tiltProps)
