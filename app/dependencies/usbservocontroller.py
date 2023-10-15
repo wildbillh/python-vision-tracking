@@ -66,8 +66,6 @@ class USBServoController:
 
         self.port = None
         self.servo_props: dict = []
-
-
     
         # Set the default servo properties
         for i in range(USBServoController.MAX_SERVOS):
@@ -229,14 +227,17 @@ class USBServoController:
 
     # --------------------------------------------------------------------------------------
 
-    def setPositionSync (self, channel: int, val: int, timeout:int = 2) -> None:
+    def setPositionSync (self, channel: int, val: int, timeout:int = 3) -> None:
         """
             Sets the position but doesn't return until the position is acheived or a timeout occurs
         """
+        
         start = time.monotonic()
-        USBServoController.setPosition(self, channel=channel, val=val)
-        while USBServoController.getPositionFromController(self, channel=channel) != val:
-            time.sleep(0.004)
+        # Get the position returned from setPosition. If we ask for a pos < min or > max
+        # then the actual position will be different
+        pos = USBServoController.setPosition(self, channel=channel, val=val)
+        while USBServoController.getPositionFromController(self, channel=channel) != pos:
+            time.sleep(0.001)
             if (time.monotonic() - start) > timeout:
                 logger.warning("Timeout occured before setPositionSync() function completed")
                 break
