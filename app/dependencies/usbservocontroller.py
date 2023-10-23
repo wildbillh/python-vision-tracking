@@ -153,14 +153,15 @@ class USBServoController:
       
     # ---------------------------------------------------------------------------------------
     
-    def setAcceleration(self, channel: int, val: int) -> None:
+    def setAcceleration(self, channel: int, val: int) -> int:
         """
             Set the acceleration to get smooth transitions
         """
-    
+
         message = bytearray([0x89, channel, val & 0x7F, (val >> 7) & 0x7F])
         self.writeCommand(message, "setAcceleration")
         self.servo_props[channel].acceleration = val
+        return val
 
     # ---------------------------------------------------------------------------------------
 
@@ -174,9 +175,9 @@ class USBServoController:
 
     def setSpeed(self, channel: int, val: int) -> None:
         """
-            Set the acceleration to get smooth transitions
+            Set the speed of the servo
         """
-        
+
         message = bytearray([0x87, channel, val & 0x7F, (val >> 7) & 0x7F])
         self.writeCommand(message, "setSpeed")
         self.servo_props[channel].speed = val
@@ -201,7 +202,7 @@ class USBServoController:
         """
             Sets the microseconds for the designated channel 
         """
-        
+
         new_pos = val
 
         # if the desired position is less than min or greater than max, use those values instead.     

@@ -1,5 +1,5 @@
 import logging, time
-from typing import Dict, List, Union
+from typing import Dict, List, Tuple, Union
 from app.dependencies.usbservocontroller import USBServoController
 
 logger = logging.getLogger()
@@ -82,14 +82,37 @@ class PanTilt (USBServoController):
         
         self.returnToHome(servo=PanTilt.ALL, sync=False)
 
-     # -------------------------------------------------------------------------------------   
+    # -------------------------------------------------------------------------------------
+
+    def setAcceleration (self, panAcceleration: Union[int, None] = None, tiltAcceleration: Union[int, None] = None) -> Tuple[int, int]: 
+        """
+            Sets the acceleration of the pan and tilt servos.
+            Returns the current or new values
+        """
+
+        panReturn = super().getAcceleration(self.pan)
+        tiltReturn = super().getAcceleration(self.tilt)
+
+
+        if panAcceleration is None and tiltAcceleration is None:
+            return (panReturn, tiltReturn)
+     
+        if panAcceleration is not None:
+            panReturn = super().setAcceleration(self.pan, panAcceleration)
+
+        if tiltAcceleration is not None:
+            tiltReturn = super().setAcceleration(self.tilt, tiltAcceleration)   
+     
+        return (panReturn, tiltReturn)
+    
+    # -------------------------------------------------------------------------------------   
 
     def setPosition (self, panPos: Union[int, None] = None, tiltPos: Union[int, None] = None) -> List[Union[int, None]]:
         """
             Sets the position of the pan and tilt servos
         """
 
-        if not panPos and not tiltPos:
+        if panPos is None and tiltPos is None:
             return [None, None]
         
         # Build the position parameters

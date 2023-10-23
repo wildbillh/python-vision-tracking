@@ -12,6 +12,8 @@ class CameraCaptureManager (CaptureManager):
         Adds camera specific featurs to the CaptureManager class
     """
 
+    MIN_ZOOM = 100.0
+    MAX_ZOOM = 180.0
 
     def __init__(self, openCVBackend = cv2.CAP_MSMF):
         """
@@ -22,7 +24,7 @@ class CameraCaptureManager (CaptureManager):
         self.backend = openCVBackend
         # If the backend is MSMF, zoom set works but zoom get does not. 
         # Store the value of zoom and bypass the get method
-        self.zoom = 100.0 if openCVBackend == cv2.CAP_MSMF else None
+        self.zoom = 100.0 #if openCVBackend == cv2.CAP_MSMF else None
 
      # -------------------------------------------------------------- 
 
@@ -45,6 +47,17 @@ class CameraCaptureManager (CaptureManager):
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
 
+    
+    def setZoom (self, val: float) -> float:
+        if val < CameraCaptureManager.MIN_ZOOM:
+            val = CameraCaptureManager.MIN_ZOOM
+        elif val > CameraCaptureManager.MAX_ZOOM:
+            val = CameraCaptureManager.MAX_ZOOM
+
+        self.cap.set(cv2.CAP_PROP_ZOOM, val)
+        self.zoom = val  
+
+
     # ----------------------------------------------------------------------
 
     def setCameraProperties (self, props: {}):
@@ -58,8 +71,7 @@ class CameraCaptureManager (CaptureManager):
         if "width" in props:
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(props["width"]))  
         if "zoom" in props:
-            self.cap.set(cv2.CAP_PROP_ZOOM, float(props["zoom"]))
-            self.zoom = props["zoom"] if self.zoom is not None else None  
+            self.setZoom(props["zoom"] )  
         if "brightness" in props:
             self.cap.set(cv2.CAP_PROP_BRIGHTNESS, float(props["brightness"]))
         if "contrast" in props:
