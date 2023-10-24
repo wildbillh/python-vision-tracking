@@ -1,7 +1,8 @@
-
+import timeit
 from typing import Dict, List, Tuple, Union
 import logging, math, serial, time
 from collections.abc import Iterable
+from threading import Thread
 
 logger = logging.getLogger()
 
@@ -26,6 +27,7 @@ class ServoProperties:
         self.disabled = True
         self.microseconds_per_degree = (self.max - self.min) / rangeDegrees
         self.microseconds_per_radian =  self.microseconds_per_degree * (180 / math.pi)
+        self.calibration = None
 
     # --------------------------------------------------------------
 
@@ -66,6 +68,7 @@ class USBServoController:
 
         self.port = None
         self.servo_props: dict = []
+        self.is_thread_running = False
     
         # Set the default servo properties
         for i in range(USBServoController.MAX_SERVOS):
@@ -79,6 +82,39 @@ class USBServoController:
         """
         self.close() 
     
+    # ------------------------------------------------------------------------
+
+    def calibrate (self, channel):
+        """
+        """
+        self.servo_props[channel].calibration = []
+        original_pos = self.servo_props[channel].pos
+
+        self.setPositionSync(channel, self.servo_props[channel].home) 
+
+        for i in range(0,46):
+            start = timeit.default_timer()
+            USBServoController.setRelativePos(self, channel, i if i % 2 == 0 else -abs(i), sync=True)
+            self.servo_props[channel].calibration.append(timeit.default_timer() - start)
+    
+        
+        self.setPositionSync(channel, original_pos)
+
+
+    #--------------------------------------------------------------------------------------
+
+    def calculateMovementTime (self, channel: int, degrees: float, fps: int = 30) -> Tuple[float, int]:
+        """
+            Retreive the stored time and number of frames needed to move each servo the specified degrees
+        """
+        degrees = abs(degrees) if abs(degrees) < 45 else 45
+        seconds = self.servo_props[channel].calibration[math.ceil(degrees)]
+        frames_to_skip = math.ceil(fps * seconds)
+
+        return (seconds, frames_to_skip)
+
+
+
     # -------------------------------------------------------------
 
     def getServoProperties (self, channel) -> ServoProperties:
@@ -263,16 +299,21 @@ class USBServoController:
                 ret_pos_list.append(None)
 
         return ret_pos_list
-
+    
     # ----------------------------------------------------------------------------------------
 
-    def setPositionMultiSync (self, infoList: List[Union[Tuple[int, int], None]], timeout:int = 2) -> List[Union[int, None]]:
+    def setPositionMultiSync (self, infoList: List[Union[Tuple[int, int], None]], timeout:int = 2, is_threaded=False) -> List[Union[int, None]]:
         """
             Sets the position of multiple servos, waiting until the positions are achieved or 
             the timeout occurs before returning.
         """
-
         input_len = len(infoList)
+
+        if is_threaded and self.is_thread_running:
+            logger.error("Attempt to start new thread before prior thread completed")
+            return [None] * input_len
+        
+        
         completed_list = [False] * input_len
         ret_pos_list = [None] * input_len
 
@@ -300,6 +341,9 @@ class USBServoController:
         if (time.monotonic() - start) > timeout:
                 logger.warning("Timeout occured before setPositionMultiSync() function completed")
 
+        if is_threaded:
+            self.is_thread_running = False
+
         return ret_pos_list
 
 
@@ -309,20 +353,43 @@ class USBServoController:
         """
         """
 
-        diff_ms = 0
-
-        if units == USBServoController.MICROSECONDS:
-            diff_ms = int(val)
-        elif units == USBServoController.RADIANS:
-            diff_ms = int(val * self.servo_props[channel].microseconds_per_radian)
-        else:
-            diff_ms = int(val * self.servo_props[channel].microseconds_per_degree)
+        new_pos = self.calculateRelativePosition(channel=channel, val=val, units=units)
 
         if sync:
-            USBServoController.setPositionSync(self, channel, self.servo_props[channel].pos + diff_ms)  
+            USBServoController.setPositionSync(self, channel, new_pos)  
         else:
-            USBServoController.setPosition(self, channel, self.servo_props[channel].pos + diff_ms)   
+            USBServoController.setPosition(self, channel, new_pos)   
 
+    
+    def setRelativePosMulti (self, infoList: List[Union[Tuple[int, int], None]], units : int = 2, timeout : int = 2, is_threaded = False):
+        """
+        """
+
+        input_len = len(infoList)
+        relative_tuple_list = [None] * input_len
+
+        # For each servo pos combo, calculate the new position and create a replacement tuple
+        for i, info in enumerate(infoList):
+            channel = info[0]
+            pos = self.calculateRelativePosition(channel, info[1], units)
+            relative_tuple_list[i] = (channel, pos)
+
+        self.setPositionMultiSync(relative_tuple_list, timeout, is_threaded=is_threaded)
+
+    
+    def setRelativePosMultiThreaded (self, infoList:List[Union[Tuple[int, int], None]], units:int = 2, timeout:int = 2):
+        """
+        """
+
+        if self.is_thread_running:
+            logger.error("Attempt to start new thread before prior completion")
+            return
+        
+        thread = Thread(target=self.setRelativePosMulti, 
+                        kwargs={"infoList": infoList, "units": units, "timeout": timeout, "is_threaded": True})
+        thread.start()
+    
+    
     # -------------------------------------------------------------------------------    
 
     def getPosition (self, channel: int) -> int:
@@ -406,3 +473,20 @@ class USBServoController:
             return USBServoController.setPositionMultiSync(self, infoList=info_list, timeout=timeout)
         
         return USBServoController.setPositionMulti(self, infoList=info_list)
+
+    
+    # ---------------------------------------------------------------------------------
+    
+    def calculateRelativePosition (self, channel: int, val: float, units: int) -> int:
+        """
+            Calculates the new position in microseconds given the desired offset in any unit
+        """
+
+        if units == USBServoController.MICROSECONDS:
+            diff_ms = int(val)
+        elif units == USBServoController.RADIANS:
+            diff_ms = int(val * self.servo_props[channel].microseconds_per_radian)
+        else:
+            diff_ms = int(val * self.servo_props[channel].microseconds_per_degree)
+
+        return self.servo_props[channel].pos + diff_ms  

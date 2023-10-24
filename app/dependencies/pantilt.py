@@ -84,6 +84,35 @@ class PanTilt (USBServoController):
 
     # -------------------------------------------------------------------------------------
 
+    def calibrate (self):
+        """
+            Calibrate the pan and tilt servos
+        """
+
+        super().calibrate (channel=self.pan)
+        super().calibrate (channel=self.tilt)
+
+    # ------------------------------------------------------------------------------------
+
+    def calculateMovementTime (self, panDegrees = None, tiltDegrees = None, fps = 30) -> Tuple[float, int]:
+        """
+        """
+
+        return_time = 0.0
+        return_frames = 0
+
+        if panDegrees is not None:
+            return_time, return_frames = super().calculateMovementTime(channel=self.pan, degrees=panDegrees, fps=fps)
+
+        if tiltDegrees is not None:
+            ret_tuple = super().calculateMovementTime(channel=self.tilt, degrees=tiltDegrees, fps=fps)
+            return_time += ret_tuple[0]
+            return_frames += ret_tuple[1]
+
+        return (return_time, return_frames)
+    
+    # ------------------------------------------------------------------------------------
+
     def setAcceleration (self, panAcceleration: Union[int, None] = None, tiltAcceleration: Union[int, None] = None) -> Tuple[int, int]: 
         """
             Sets the acceleration of the pan and tilt servos.

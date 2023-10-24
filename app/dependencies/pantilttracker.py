@@ -12,8 +12,8 @@ class PanTiltTracker (PanTilt):
     """
 
     DEFAULT_HORIZ_SLACK = 0.03
-    DEFAULT_VERT_SLACK = 0.03
-    DEFAULT_CENTER_OFFSET = (0.0, 0.0)
+    DEFAULT_VERT_SLACK = 0.05
+    DEFAULT_CENTER_OFFSET = (0.0, 0.2)
     DEFAULT_FRAME_DIMS = (1280, 720)
 
     DEFAULT_TRACKER_PROPS = {
@@ -57,16 +57,15 @@ class PanTiltTracker (PanTilt):
   
         # Calculate and store the horizontal and vertical slack tuples
         self.horiz_slack = (
-            frame_dims[0] - int(frame_dims[0] * self.tracker_props["horizSlack"]),
-            frame_dims[0] + int(frame_dims[0] * self.tracker_props["horizSlack"])
+            self.frame_center[0] - int(self.frame_center[0] * self.tracker_props["horizSlack"]),
+            self.frame_center[0] + int(self.frame_center[0] * self.tracker_props["horizSlack"])
         )
 
         self.vert_slack = (
-            frame_dims[1] - int(frame_dims[1] * self.tracker_props["vertSlack"]),
-            frame_dims[1] + int(frame_dims[1] * self.tracker_props["vertSlack"])
+            self.frame_center[1] - int(self.frame_center[1] * self.tracker_props["vertSlack"]),
+            self.frame_center[1] + int(self.frame_center[1] * self.tracker_props["vertSlack"])
         )
 
-    
     # -------------------------------------------------------------------------
     
     def calculateCorrectionDegrees (self, regionCenter: Tuple[int, int]) -> Tuple[Union[float, None], Union[float, None]]: 
@@ -92,16 +91,26 @@ class PanTiltTracker (PanTilt):
     
     # --------------------------------------------------------------------------------------------
     
-    def correct (self, regionCenter: Tuple[int, int]):
+    def correct (self, regionCenter: Tuple[int, int], fps:int = 30) -> Tuple[float, int]:
         """
+            Given the needed correction degrees for each servo, send the new positions to 
+            the servos and return the estimated time and frames needed to complete the move.
         """
+        
+        # Calculate the degrees of correction needed by both servos
         correction_tuple = self.calculateCorrectionDegrees(regionCenter=regionCenter)
-
-        if correction_tuple:
-            self.setRelativePos(panPos=correction_tuple[0], tiltPos=correction_tuple[1])
-                
-        return correction_tuple
-    
+     
+        if all(x is None for x in correction_tuple):
+            return (0.0, 0)
+        
+        # Send the new positions
+        self.setRelativePos(panPos=correction_tuple[0], tiltPos=correction_tuple[1], units=2)
+        
+        print("correct", correction_tuple[0], correction_tuple[1], flush=True)
+                   
+        # Calculate the time needed to perform the correction
+        return self.calculateMovementTime(panDegrees=correction_tuple[0], tiltDegrees=correction_tuple[1], fps=fps)
+         
 
     # --------------------------------------------------------------------------------------------
     
