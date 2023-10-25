@@ -1,5 +1,5 @@
 
-import logging, math
+import json, logging, math
 from typing import Union, Tuple
 from app.dependencies.pantilt import PanTilt
 from app.dependencies.usbservocontroller import USBServoController

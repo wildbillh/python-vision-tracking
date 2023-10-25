@@ -1,4 +1,4 @@
-import logging, time
+import logging, math, time
 from typing import Dict, List, Tuple, Union
 from app.dependencies.usbservocontroller import USBServoController
 
@@ -84,13 +84,13 @@ class PanTilt (USBServoController):
 
     # -------------------------------------------------------------------------------------
 
-    def calibrate (self):
+    def calibrate (self, calibrationFile=None):
         """
             Calibrate the pan and tilt servos
         """
 
-        super().calibrate (channel=self.pan)
-        super().calibrate (channel=self.tilt)
+        super().calibrate (channel=self.pan, calibrationFile=calibrationFile)
+        super().calibrate (channel=self.tilt, calibrationFile=calibrationFile)
 
     # ------------------------------------------------------------------------------------
 
@@ -99,17 +99,15 @@ class PanTilt (USBServoController):
         """
 
         return_time = 0.0
-        return_frames = 0
 
         if panDegrees is not None:
-            return_time, return_frames = super().calculateMovementTime(channel=self.pan, degrees=panDegrees, fps=fps)
+            return_time = super().calculateMovementTime(channel=self.pan, degrees=panDegrees)[0]
 
         if tiltDegrees is not None:
-            ret_tuple = super().calculateMovementTime(channel=self.tilt, degrees=tiltDegrees, fps=fps)
-            return_time += ret_tuple[0]
-            return_frames += ret_tuple[1]
+            return_time += super().calculateMovementTime(channel=self.tilt, degrees=tiltDegrees)[0]
+           
 
-        return (return_time, return_frames)
+        return (return_time, math.ceil(return_time * fps))
     
     # ------------------------------------------------------------------------------------
 

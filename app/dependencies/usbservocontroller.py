@@ -1,8 +1,10 @@
 import timeit
 from typing import Dict, List, Tuple, Union
-import logging, math, serial, time
+import json, logging, math, os, serial, time
 from collections.abc import Iterable
 from threading import Thread
+from jproperties import Properties
+from app.dependencies.utils import importProperties
 
 logger = logging.getLogger()
 
@@ -84,23 +86,71 @@ class USBServoController:
     
     # ------------------------------------------------------------------------
 
-    def calibrate (self, channel):
+    def calibrate (self, channel:int, calibrationFile:Union[str, None] = None) -> None:
         """
-        """
-        self.servo_props[channel].calibration = []
-        original_pos = self.servo_props[channel].pos
+            Builds a list of servo times to accomplish a move in x degrees (0-45).
+            Stored as a list where index is degrees and value is seconds.
+            If calibrationFile is supplied attempts to find an entry in the given
+            property file. If file or entry is not found build/modifies the file.
 
-        self.setPositionSync(channel, self.servo_props[channel].home) 
+        """
+
+ 
+        # No calibration file is given so do the calibration and store to servo props
+        if calibrationFile is None:
+            logger.info(f'Calibrating servo: {channel} ....')
+            self.calibrateServo(channel=channel)
+            return
+
+        # To get here a calibration property filename is supplied
+        props = self.servo_props[channel]
+        propertyName = f"{channel}-{props.speed}-{props.acceleration}"
+        cal_props = Properties()
+
+        # if we find the file
+        if os.path.isfile(calibrationFile):
+            
+            with open (calibrationFile, 'rb') as f:
+                cal_props.load(f, encoding='utf-8')
+            
+            # We found the needed property so load in the servo props and return
+            if propertyName in cal_props.keys():
+                props.calibration = json.loads(cal_props.get(propertyName).data)
+                logger.info(f"Using stored calibration values for channel: {channel}") 
+                return
+        else:
+            logger.info(f'Calibration file: {calibrationFile} not found. Building....') 
+
+        # To get here either the property file does not exist or the entry was not found      
+        logger.info(f'Calibrating servo: {channel} ....')
+        cal_props[propertyName] = json.dumps(self.calibrateServo(channel))
+        with open (calibrationFile, 'wb') as f:
+            cal_props.store(f, encoding='utf-8')
+
+
+    # --------------------------------------------------------------------------------------------
+
+    def calibrateServo (self, channel: int) -> List[float]:
+        """
+            Run through a calibration stage moving the servo from 0 to 45 degrees. 
+            Record the time for each move and store it in the servo properties
+        """
+        
+        props = self.servo_props[channel]
+        props.calibration = []
+        # Store the original position of the servo so we can set it back
+        original_pos = props.pos
 
         for i in range(0,46):
             start = timeit.default_timer()
             USBServoController.setRelativePos(self, channel, i if i % 2 == 0 else -abs(i), sync=True)
-            self.servo_props[channel].calibration.append(timeit.default_timer() - start)
-    
-        
+            props.calibration.append(timeit.default_timer() - start)
+
+        # Restore the original position
         self.setPositionSync(channel, original_pos)
-
-
+        return props.calibration
+    
+   
     #--------------------------------------------------------------------------------------
 
     def calculateMovementTime (self, channel: int, degrees: float, fps: int = 30) -> Tuple[float, int]:
@@ -112,8 +162,6 @@ class USBServoController:
         frames_to_skip = math.ceil(fps * seconds)
 
         return (seconds, frames_to_skip)
-
-
 
     # -------------------------------------------------------------
 
