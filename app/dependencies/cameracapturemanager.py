@@ -1,21 +1,23 @@
 # Note if using the MSMF backend, you must include the next 2 lines
 # to avoid serious lags in camera initialization
-import os
+import time, os
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 
-import cv2, sys
+import cv2, numpy as np, logging, sys
+from typing import Tuple, Union
 from app.dependencies.capturemanager import CaptureManager
 
+logger = logging.getLogger()
 
 class CameraCaptureManager (CaptureManager):
     """
         Adds camera specific featurs to the CaptureManager class
     """
 
-    MIN_ZOOM = 100.0
-    MAX_ZOOM = 180.0
+    MIN_ZOOM = 100
+    MAX_ZOOM = 180
 
-    def __init__(self, openCVBackend = cv2.CAP_MSMF):
+    def __init__(self, openCVBackend = cv2.CAP_DSHOW):
         """
             For Windows, only Direct Show and MSMF backends work out of the box
         """
@@ -24,8 +26,22 @@ class CameraCaptureManager (CaptureManager):
         self.backend = openCVBackend
         # If the backend is MSMF, zoom set works but zoom get does not. 
         # Store the value of zoom and bypass the get method
-        self.zoom = 100.0 #if openCVBackend == cv2.CAP_MSMF else None
+        self.zoom = 100
 
+        self.current_time = time.time()
+
+     
+    def read(self) -> Tuple[bool, Union[np.ndarray, None], Union[dict, None]]:
+        """
+        """
+
+        parent_tuple = super().read()
+        if self.zoom == 100.0:
+            return parent_tuple
+        
+        return (parent_tuple[0], self.digitalZoom(parent_tuple[1], self.zoom), parent_tuple[2])
+     
+     
      # -------------------------------------------------------------- 
 
     def open(self, source: int, props: dict = {}):
@@ -48,30 +64,55 @@ class CameraCaptureManager (CaptureManager):
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
 
     
-    def setZoom (self, val: float) -> float:
+    def setZoom (self, val: int) -> float:
+        
         if val < CameraCaptureManager.MIN_ZOOM:
             val = CameraCaptureManager.MIN_ZOOM
         elif val > CameraCaptureManager.MAX_ZOOM:
             val = CameraCaptureManager.MAX_ZOOM
 
-        self.cap.set(cv2.CAP_PROP_ZOOM, val)
-        self.zoom = val  
-
+        self.zoom = val
 
     # ----------------------------------------------------------------------
 
     def setCameraProperties (self, props: {}):
         """
-            Sets the camera properties
-        """
-        if "fps" in props:
-            self.cap.set(cv2.CAP_PROP_FPS, float(props["fps"]))
-        if "height" in props:
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(props["height"]))   
-        if "width" in props:
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(props["width"]))  
+            Sets the camera properties.
+            Oddly enough, the order these are called is crucial
+        """ 
+        
+        
         if "zoom" in props:
-            self.setZoom(props["zoom"] )  
+            self.setZoom(float(props["zoom"])) 
+
+        for description, prop_id in [("height",cv2.CAP_PROP_FRAME_HEIGHT), 
+                     ("width",cv2.CAP_PROP_FRAME_WIDTH,), 
+                     ("fps",cv2.CAP_PROP_FPS)]:
+                     #"zoom", "autoexposure", 
+                     #"brightness", "contrast", "saturation", "hue"]:
+
+            if description in props:
+                self.setProperty(prop_id, props[description], description)
+        
+        
+        """
+        if "height" in props:
+            self.setProperty(cv2.CAP_PROP_FRAME_HEIGHT, float(props["height"]), "height")  
+            print('set height', success, flush=True)
+
+        if "width" in props:
+            success = self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(props["width"])) 
+            print('set width', success, flush=True)
+
+        if "fps" in props:
+            success = self.cap.set(cv2.CAP_PROP_FPS, float(props["fps"]))
+            print('set fps', success, flush=True)
+
+        if "autoExposure" in props:
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, props["autoExposure"])       
+         
+        if "zoom" in props:
+            self.setZoom(float(props["zoom"]))  
         if "brightness" in props:
             self.cap.set(cv2.CAP_PROP_BRIGHTNESS, float(props["brightness"]))
         if "contrast" in props:
@@ -80,8 +121,19 @@ class CameraCaptureManager (CaptureManager):
             self.cap.set(cv2.CAP_PROP_SATURATION, float(props["saturation"]))
         if "hue" in props: 
             self.cap.get(cv2.CAP_PROP_HUE, float(props["hue"]))
-
+        
+        """
+        success = self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M','J','P','G'))
+        print('set fourcc', success, flush=True)
+        
     
+    # ------------------------------------------------------------------------
+
+    def setProperty (self, propId:int, val:float, description:str):
+
+        if not self.cap.set(propId=propId, value=float(val)):
+            logger.error(f'Camera property "{description} was not set')
+
     # --------------------------------------------------------------
 
     def getFrameProperties(self) -> dict:
@@ -92,7 +144,7 @@ class CameraCaptureManager (CaptureManager):
             "height": self.height,
             "width": self.width,
             "rate": self.fps,
-            "time": int(self.cap.get(cv2.CAP_PROP_POS_MSEC)),
+            "time": int((time.time() - self.current_time) * 1000),
             "frame": self.frame_count
         }  
     
@@ -109,10 +161,38 @@ class CameraCaptureManager (CaptureManager):
                 fourcc = raw_fourcc.to_bytes(4, byteorder=sys.byteorder).decode()
         
         return {
+            "fps": self.cap.get(cv2.CAP_PROP_FPS),
             "fourcc": fourcc,
             "brightness": self.cap.get(cv2.CAP_PROP_BRIGHTNESS),
             "contrast": self.cap.get(cv2.CAP_PROP_CONTRAST),
             "saturation": self.cap.get(cv2.CAP_PROP_SATURATION),
             "hue": self.cap.get(cv2.CAP_PROP_HUE),
-            "zoom": self.cap.get(cv2.CAP_PROP_ZOOM) if self.zoom is None else self.zoom 
+            "zoom": self.cap.get(cv2.CAP_PROP_ZOOM) if self.zoom is None else self.zoom,
+            "autoExposure": self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)
         }
+   
+   
+    # -----------------------------------------------------------------------------
+
+    def digitalZoom(self, img:np.ndarray, magnification:float = 100.0):
+        """
+            Returns an image zoomed in based on the given magnification.
+            100 = No zoom
+        """
+        if magnification == 100.0:
+            return img
+        
+        zoom_factor = magnification / 100
+        
+        y_size = img.shape[0]
+        x_size = img.shape[1]
+    
+        # define new boundaries
+        x1 = int(0.5*x_size*(1-1/zoom_factor))
+        x2 = int(x_size-0.5*x_size*(1-1/zoom_factor))
+        y1 = int(0.5*y_size*(1-1/zoom_factor))
+        y2 = int(y_size-0.5*y_size*(1-1/zoom_factor))
+
+        # first crop image then scale
+        img_cropped = img[y1:y2,x1:x2]
+        return cv2.resize(img_cropped, None, fx=zoom_factor, fy=zoom_factor, interpolation=cv2.INTER_LINEAR)
