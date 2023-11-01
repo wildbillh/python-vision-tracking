@@ -14,7 +14,7 @@ class ServoProperties:
         Class used the hold the properties for each servo
     """
 
-    def __init__(self, rangeDegrees = 90):
+    def __init__(self, rangeDegrees = 120):
         """
             Class which holds the property values for a single servo
         """

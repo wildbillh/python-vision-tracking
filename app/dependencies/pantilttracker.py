@@ -12,7 +12,7 @@ class PanTiltTracker (PanTilt):
     """
 
     DEFAULT_HORIZ_SLACK = 0.03
-    DEFAULT_VERT_SLACK = 0.05
+    DEFAULT_VERT_SLACK = 0.02
     DEFAULT_CENTER_OFFSET = (0.0, 0.2)
     DEFAULT_FRAME_DIMS = (1280, 720)
 

@@ -64,8 +64,14 @@ class CameraCaptureManager (CaptureManager):
         self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
 
     
+    # -----------------------------------------------------------------------
+    
     def setZoom (self, val: int) -> float:
-        
+        """
+            Sets the value of self.zoom in the class
+            Since we are using a software zoom, this zoom is applied
+            after the image is read. 
+        """
         if val < CameraCaptureManager.MIN_ZOOM:
             val = CameraCaptureManager.MIN_ZOOM
         elif val > CameraCaptureManager.MAX_ZOOM:
@@ -78,53 +84,36 @@ class CameraCaptureManager (CaptureManager):
     def setCameraProperties (self, props: {}):
         """
             Sets the camera properties.
-            Oddly enough, the order these are called is crucial
+            Oddly enough, the order these are called is crucial.
+            When setting the zoom value after the program is running,
+            use the setZoom() function instead.
         """ 
         
         
         if "zoom" in props:
             self.setZoom(float(props["zoom"])) 
 
-        for description, prop_id in [("height",cv2.CAP_PROP_FRAME_HEIGHT), 
-                     ("width",cv2.CAP_PROP_FRAME_WIDTH,), 
-                     ("fps",cv2.CAP_PROP_FPS)]:
+        for description, prop_id in [
+                ("height",          cv2.CAP_PROP_FRAME_HEIGHT), 
+                ("width",           cv2.CAP_PROP_FRAME_WIDTH,), 
+                ("fps",             cv2.CAP_PROP_FPS),
+                ("autoExposure",    cv2.CAP_PROP_AUTO_EXPOSURE),
+                ("brightness",      cv2.CAP_PROP_BRIGHTNESS),
+                ("contrast",        cv2.CAP_PROP_CONTRAST),
+                ("saturation",      cv2.CAP_PROP_SATURATION),
+                ("hue",             cv2.CAP_PROP_HUE)
+            ]:
                      #"zoom", "autoexposure", 
                      #"brightness", "contrast", "saturation", "hue"]:
 
             if description in props:
                 self.setProperty(prop_id, props[description], description)
         
+        # Always call this function last
+        self.setProperty(propId=cv2.CAP_PROP_FOURCC, 
+                         val=cv2.VideoWriter.fourcc('M','J','P','G'),
+                         description="fourcc")
         
-        """
-        if "height" in props:
-            self.setProperty(cv2.CAP_PROP_FRAME_HEIGHT, float(props["height"]), "height")  
-            print('set height', success, flush=True)
-
-        if "width" in props:
-            success = self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(props["width"])) 
-            print('set width', success, flush=True)
-
-        if "fps" in props:
-            success = self.cap.set(cv2.CAP_PROP_FPS, float(props["fps"]))
-            print('set fps', success, flush=True)
-
-        if "autoExposure" in props:
-            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, props["autoExposure"])       
-         
-        if "zoom" in props:
-            self.setZoom(float(props["zoom"]))  
-        if "brightness" in props:
-            self.cap.set(cv2.CAP_PROP_BRIGHTNESS, float(props["brightness"]))
-        if "contrast" in props:
-            self.cap.set(cv2.CAP_PROP_CONTRAST, float(props["contrast"]))
-        if "saturation" in props: 
-            self.cap.set(cv2.CAP_PROP_SATURATION, float(props["saturation"]))
-        if "hue" in props: 
-            self.cap.get(cv2.CAP_PROP_HUE, float(props["hue"]))
-        
-        """
-        success = self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter.fourcc('M','J','P','G'))
-        print('set fourcc', success, flush=True)
         
     
     # ------------------------------------------------------------------------
@@ -161,7 +150,9 @@ class CameraCaptureManager (CaptureManager):
                 fourcc = raw_fourcc.to_bytes(4, byteorder=sys.byteorder).decode()
         
         return {
-            "fps": self.cap.get(cv2.CAP_PROP_FPS),
+            "width": int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            "height": int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            "fps": int(self.cap.get(cv2.CAP_PROP_FPS)),
             "fourcc": fourcc,
             "brightness": self.cap.get(cv2.CAP_PROP_BRIGHTNESS),
             "contrast": self.cap.get(cv2.CAP_PROP_CONTRAST),
